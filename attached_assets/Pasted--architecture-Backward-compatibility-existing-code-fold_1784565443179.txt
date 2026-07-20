@@ -1,0 +1,200 @@
+আগের architecture পরিবর্তন করবে না। Backward compatibility বজায় রাখবে। কোনো existing code, folder structure বা configuration অপ্রয়োজনীয়ভাবে পরিবর্তন, rename বা refactor করবে না। কোনো feature implement করবে না যা এই phase-এর scope-এর বাইরে।
+
+## Step 0 — Repository Analysis (অবশ্যই প্রথমে করবে)
+
+কোনো code লেখার আগে:
+
+1. পুরো repository scan করবে।
+2. README.md সম্পূর্ণ পড়বে।
+3. Project structure বিশ্লেষণ করবে।
+4. বর্তমান architecture বুঝবে।
+5. সর্বশেষ commit পর্যন্ত কী কী implement হয়েছে তার summary তৈরি করবে।
+6. Completed phase এবং pending phase শনাক্ত করবে।
+7. যদি কোনো requirement অস্পষ্ট হয় তাহলে code লেখা শুরু করার আগে প্রশ্ন করবে।
+
+---
+
+# Current Phase
+
+Phase 3 — Project Documentation & Architecture Governance
+
+এই phase-এর উদ্দেশ্য হলো project-টিকে self-documenting করা যাতে ভবিষ্যতে নতুন AI Agent, নতুন Replit Account, Cursor, Codex বা অন্য কোনো developer repository খুলেই পুরো project বুঝতে পারে।
+
+---
+
+## Task 1 — ARCHITECTURE.md
+
+Production-quality ARCHITECTURE.md তৈরি করবে।
+
+এতে থাকবে:
+
+- Project Vision
+- High Level Architecture
+- Clean Architecture ব্যাখ্যা
+- Folder Structure
+- Layer Responsibility
+- Dependency Direction
+- Request Flow
+- Database Layer
+- Service Layer
+- Repository Layer
+- API Layer
+- Middleware Layer
+- Future Infrastructure
+- Deployment Strategy
+- Scaling Strategy
+
+---
+
+## Task 2 — PROJECT_ROADMAP.md
+
+এই file হবে project-এর master roadmap।
+
+এতে থাকবে:
+
+- Completed Phases
+- Current Phase
+- Remaining Phases
+
+Roadmap-এ Authentication, Users, Database Models, Chat, Stories, Voice Rooms, Wallet, Notifications, LiveKit, MinIO, Security, Testing, Monitoring, Deployment, Scaling—সব phase ধারাবাহিকভাবে থাকবে।
+
+প্রতিটি phase-এর থাকবে:
+
+- Goal
+- Deliverables
+- Success Criteria
+
+---
+
+## Task 3 — CONTRIBUTING.md
+
+Production contribution guideline লিখবে।
+
+এতে থাকবে:
+
+- Branch Strategy
+- Commit Message Convention
+- Coding Standard
+- Naming Convention
+- Folder Rules
+- Pull Request Rules
+- Review Checklist
+
+---
+
+## Task 4 — CHANGELOG.md
+
+Keep a Changelog format অনুসরণ করবে।
+
+প্রথম release হিসেবে লিখবে:
+
+Unreleased
+
+Version 0.1.0
+
+Added
+
+- Backend Foundation
+- Database Foundation
+
+---
+
+## Task 5 — AI_AGENT.md
+
+এটাই সবচেয়ে গুরুত্বপূর্ণ।
+
+এই file ভবিষ্যতের সব AI Agent-এর জন্য instruction manual হবে।
+
+এতে থাকবে:
+
+Project Summary
+
+Current Architecture
+
+Current Phase
+
+Completed Work
+
+Pending Work
+
+Coding Rules
+
+Architecture Rules
+
+Forbidden Actions
+
+Git Rules
+
+Development Rules
+
+Definition of Done
+
+AI Rules:
+
+- Existing architecture না ভাঙা
+- Unnecessary refactor না করা
+- Duplicate code না লেখা
+- README update করা
+- PROJECT_ROADMAP update করা
+- CHANGELOG update করা
+- Documentation sync রাখা
+- Clean Architecture অনুসরণ করা
+- Production-ready code লেখা
+
+যাতে ভবিষ্যতে নতুন Agent conversation history ছাড়াই repository বুঝতে পারে।
+
+---
+
+## Task 6
+
+README.md update করবে।
+
+README-এ link যোগ করবে:
+
+- ARCHITECTURE.md
+- PROJECT_ROADMAP.md
+- CONTRIBUTING.md
+- CHANGELOG.md
+- AI_AGENT.md
+
+---
+
+## Strict Rules
+
+কোনো Python source code modify করবে না যদি একান্ত প্রয়োজন না হয়।
+
+কোনো নতুন dependency install করবে না।
+
+কোনো নতুন feature implement করবে না।
+
+কোনো database model তৈরি করবে না।
+
+কোনো authentication implement করবে না।
+
+কোনো API endpoint যোগ করবে না।
+
+শুধুমাত্র documentation এবং governance files তৈরি করবে।
+
+---
+
+## Final Validation
+
+শেষে নিশ্চিত করবে:
+
+- Documentation files পরস্পরের সাথে consistent।
+- README-এর সব link সঠিক।
+- Project structure অপরিবর্তিত।
+- Existing code untouched।
+- Documentation future AI Agent-এর জন্য যথেষ্ট।
+
+---
+
+## Git
+
+শেষে:
+
+1. Summary দেবে।
+2. Commit করবে।
+3. Connected GitHub repository-তে push করবে।
+4. Commit hash দেখাবে।
+5. কোন কোন file তৈরি বা পরিবর্তন হয়েছে তার তালিকা দেবে।
