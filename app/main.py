@@ -4,9 +4,19 @@ Vee API — FastAPI application factory.
 Startup order:
     1. FastAPI app created with metadata.
     2. CORS middleware registered.
-    3. Global exception handlers registered (AuthError → 401/403/503).
+    3. Global exception handlers registered.
     4. API routers mounted.
     5. Health endpoints defined.
+
+Exception → HTTP status map (Phase 5 + Phase 6):
+    AuthTokenExpiredError    → 401
+    AuthTokenRevokedError    → 401
+    AuthError (all others)   → 401
+    InactiveUserError        → 403
+    UserNotFoundError        → 404
+    UsernameConflictError    → 409
+    ReservedUsernameError    → 422
+    FirebaseUnavailableError → 503
 """
 
 import logging
@@ -23,6 +33,9 @@ from app.core.exceptions import (
     AuthTokenRevokedError,
     FirebaseUnavailableError,
     InactiveUserError,
+    ReservedUsernameError,
+    UserNotFoundError,
+    UsernameConflictError,
     VeeError,
 )
 
@@ -57,12 +70,7 @@ app.add_middleware(
 # Global exception handlers
 #
 # Domain exceptions → structured JSON error body.
-# HTTP status mapping:
-#   AuthTokenExpiredError    → 401
-#   AuthTokenRevokedError    → 401
-#   AuthError (all others)   → 401
-#   InactiveUserError        → 403
-#   FirebaseUnavailableError → 503
+# More-specific handlers must be registered before catch-all handlers.
 # ---------------------------------------------------------------------------
 
 
@@ -71,18 +79,7 @@ def _error_body(exc: VeeError) -> dict:
     return {"error": exc.code, "message": exc.message}
 
 
-@app.exception_handler(InactiveUserError)
-async def inactive_user_handler(request: Request, exc: InactiveUserError) -> JSONResponse:
-    return JSONResponse(status_code=403, content=_error_body(exc))
-
-
-@app.exception_handler(FirebaseUnavailableError)
-async def firebase_unavailable_handler(
-    request: Request, exc: FirebaseUnavailableError
-) -> JSONResponse:
-    logger.error("firebase.unavailable path=%s", request.url.path)
-    return JSONResponse(status_code=503, content=_error_body(exc))
-
+# ---- 401 — Authentication failures ----------------------------------------
 
 @app.exception_handler(AuthTokenExpiredError)
 async def token_expired_handler(
@@ -114,6 +111,52 @@ async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
         content=_error_body(exc),
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+# ---- 403 — Authorisation failures -----------------------------------------
+
+@app.exception_handler(InactiveUserError)
+async def inactive_user_handler(
+    request: Request, exc: InactiveUserError
+) -> JSONResponse:
+    return JSONResponse(status_code=403, content=_error_body(exc))
+
+
+# ---- 404 — Not found -------------------------------------------------------
+
+@app.exception_handler(UserNotFoundError)
+async def user_not_found_handler(
+    request: Request, exc: UserNotFoundError
+) -> JSONResponse:
+    return JSONResponse(status_code=404, content=_error_body(exc))
+
+
+# ---- 409 — Conflict --------------------------------------------------------
+
+@app.exception_handler(UsernameConflictError)
+async def username_conflict_handler(
+    request: Request, exc: UsernameConflictError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=_error_body(exc))
+
+
+# ---- 422 — Validation / semantic errors ------------------------------------
+
+@app.exception_handler(ReservedUsernameError)
+async def reserved_username_handler(
+    request: Request, exc: ReservedUsernameError
+) -> JSONResponse:
+    return JSONResponse(status_code=422, content=_error_body(exc))
+
+
+# ---- 503 — External service failures ---------------------------------------
+
+@app.exception_handler(FirebaseUnavailableError)
+async def firebase_unavailable_handler(
+    request: Request, exc: FirebaseUnavailableError
+) -> JSONResponse:
+    logger.error("firebase.unavailable path=%s", request.url.path)
+    return JSONResponse(status_code=503, content=_error_body(exc))
 
 
 # ---------------------------------------------------------------------------

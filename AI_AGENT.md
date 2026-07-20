@@ -28,10 +28,11 @@ app/
 ├── api/
 │   └── v1/
 │       ├── __init__.py         ← combined v1 router — mounted at /api/v1
-│       └── auth.py             ← POST /api/v1/auth/login, GET /api/v1/auth/me
+│       ├── auth.py             ← POST /api/v1/auth/login, GET /api/v1/auth/me
+│       └── users.py            ← GET|PATCH|DELETE /api/v1/users/me, GET /api/v1/users/{username}
 ├── core/
 │   ├── config.py               ← All env vars via pydantic_settings.BaseSettings
-│   └── exceptions.py           ← Domain exception hierarchy (AuthError, InactiveUserError, …)
+│   └── exceptions.py           ← Domain exception hierarchy (AuthError, UserNotFoundError, …)
 ├── db/
 │   ├── base.py                 ← DeclarativeBase — ALL models inherit from here
 │   ├── database.py             ← Async SQLAlchemy engine (pool_size=10, max_overflow=20)
@@ -40,10 +41,11 @@ app/
 │   └── __init__.py             ← Exports: Base, engine, AsyncSessionLocal, get_db
 ├── models/
 │   ├── enums.py                ← Gender enum (str-based)
-│   └── user.py                 ← User ORM model (14 fields, UUID PK, firebase_uid, …)
+│   └── user.py                 ← User ORM model (15 fields: + deleted_at for soft-delete)
 ├── schemas/
 │   ├── auth.py                 ← FirebaseTokenPayload (frozen), AuthenticatedUser
-│   └── user.py                 ← UserBase, UserRead, UserCreate, UserUpdate
+│   └── user.py                 ← UserBase, UserRead, UserPublicRead, UserCreate, UserUpdate, UserDeletedRead
+│                                  + RESERVED_USERNAMES frozenset + username regex validator
 ├── services/
 │   ├── auth/
 │   │   ├── __init__.py         ← exports verify_firebase_token, get_current_user
@@ -51,9 +53,11 @@ app/
 │   │   ├── firebase.py         ← verify_firebase_token() — full implementation
 │   │   └── dependencies.py     ← get_current_user FastAPI dependency — full implementation
 │   ├── identity_service.py     ← IdentityService: login_with_firebase(), get_identity()
-│   └── user_service.py         ← UserService: sync_firebase_user(), get_profile(), update_last_seen()
+│   └── user_service.py         ← UserService: sync_firebase_user(), get_profile(),
+│                                  get_by_username(), update_my_profile(), soft_delete_user(),
+│                                  update_last_seen()
 ├── repositories/
-│   └── user_repo.py            ← UserRepository — all methods implemented
+│   └── user_repo.py            ← UserRepository — all methods implemented (+ soft_delete, search_by_username_prefix)
 ├── middleware/                  ← ASGI middleware — currently empty
 ├── utils/
 │   └── db_url.py               ← normalize_database_url()
@@ -61,7 +65,8 @@ app/
 
 alembic/
 ├── versions/
-│   └── cfeccaac3dc7_phase_4_add_users_table.py  ← users table + gender_enum (not yet applied)
+│   ├── cfeccaac3dc7_phase_4_add_users_table.py         ← users table + gender_enum
+│   └── a8f3d1c90e2b_phase_6_add_deleted_at_to_users.py ← deleted_at column + index
 ├── env.py                      ← imports User model; async migration runner
 └── script.py.mako
 alembic.ini
@@ -73,10 +78,10 @@ requirements.txt                ← includes firebase-admin>=6.5.0
 
 ## Current Phase
 
-**Phase 5 — Identity & Authentication Infrastructure** ✅ Complete
+**Phase 6 — Extended User Profile Management** ✅ Complete
 
 Next phase:
-- ⏳ Phase 6 — Extended User Profile & Follow System
+- ⏳ Phase 7 — Social Graph (Follow System)
 
 See `PROJECT_ROADMAP.md` for the complete phase list.
 
@@ -90,7 +95,11 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 | GET | `/health` | None | Health check |
 | GET | `/docs` | None | Swagger UI |
 | POST | `/api/v1/auth/login` | Bearer Firebase token | Login / auto-register |
-| GET | `/api/v1/auth/me` | Bearer Firebase token | Get current user profile |
+| GET | `/api/v1/auth/me` | Bearer Firebase token | Get current user (auth namespace) |
+| GET | `/api/v1/users/me` | Bearer Firebase token | Get own full profile |
+| PATCH | `/api/v1/users/me` | Bearer Firebase token | Update own profile |
+| DELETE | `/api/v1/users/me` | Bearer Firebase token | Soft-delete own account |
+| GET | `/api/v1/users/{username}` | None | Public profile by username |
 
 ---
 
@@ -138,7 +147,7 @@ FastAPI Router
 ### Phase 1 — Backend Foundation
 - FastAPI app with CORS, Swagger, ReDoc
 - `GET /` and `GET /health`
-- Pydantic Settings config in `app/core/config.py`
+- Pydantic Settings config
 
 ### Phase 2 — Database Foundation
 - SQLAlchemy 2.x async engine (asyncpg)
@@ -150,26 +159,27 @@ FastAPI Router
 - `ARCHITECTURE.md`, `PROJECT_ROADMAP.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `AI_AGENT.md`
 
 ### Phase 4 — Core Domain Models & Authentication Foundation
-- `app/models/enums.py` — `Gender` enum
-- `app/db/mixins.py` — `UUIDMixin`, `TimestampMixin`
-- `app/models/user.py` — `User` ORM model with 14 columns
+- `app/models/enums.py`, `app/db/mixins.py`, `app/models/user.py`
 - `app/schemas/user.py`, `app/schemas/auth.py`
-- Skeleton stubs for auth services and repositories
 - v1 router mounted at `/api/v1`
-- Alembic migration generated (not yet applied — apply in Phase 6 setup)
+- Alembic migration: `cfeccaac3dc7_phase_4_add_users_table.py`
 
 ### Phase 5 — Identity & Authentication Infrastructure
-- `app/core/exceptions.py` — full domain exception hierarchy
-- `app/services/auth/firebase_init.py` — Firebase Admin SDK singleton
-- `app/services/auth/firebase.py` — `verify_firebase_token()` — production implementation
-- `app/services/auth/dependencies.py` — `get_current_user` — production implementation
-- `app/services/identity_service.py` — `IdentityService`
-- `app/repositories/user_repo.py` — all methods implemented
-- `app/services/user_service.py` — all methods implemented
-- `app/api/v1/auth.py` — `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
-- `app/main.py` — global exception handlers
-- `firebase-admin>=6.5.0` added to `requirements.txt`
-- `.env.example` updated with Firebase credential fields
+- Full Firebase authentication stack
+- `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
+- Global exception handlers
+
+### Phase 6 — Extended User Profile Management
+- `deleted_at` soft-delete column on User model
+- Username validation: `^[a-z0-9_]{3,30}$` regex + 80+ reserved names
+- New exceptions: `UserNotFoundError`, `UsernameConflictError`, `ReservedUsernameError`
+- `UserPublicRead` (public profile), `UserDeletedRead` (soft-delete confirmation)
+- `UserRepository.soft_delete()` + `search_by_username_prefix()`
+- `UserService.get_by_username()`, `update_my_profile()`, `soft_delete_user()`
+- `GET /api/v1/users/me`, `PATCH /api/v1/users/me`, `DELETE /api/v1/users/me`
+- `GET /api/v1/users/{username}` (public, no auth required)
+- Exception handlers: 404, 409, 422 for user domain errors
+- Alembic migration: `a8f3d1c90e2b_phase_6_add_deleted_at_to_users.py`
 
 ---
 
@@ -177,16 +187,16 @@ FastAPI Router
 
 | Phase | Description |
 |-------|-------------|
-| 6 | Extended User Profile & Follow System (apply migration first) |
-| 7 | Voice Rooms (LiveKit integration) |
-| 8 | Audio Stories (MinIO / S3 storage) |
-| 9 | Chat & Direct Messaging (WebSocket + Redis) |
-| 10 | Wallet & Payments |
-| 11 | Notifications (FCM + Celery) |
-| 12 | Security Hardening |
-| 13 | Testing (pytest, 80%+ coverage) |
-| 14 | Observability & Monitoring (structlog, Prometheus, Sentry) |
-| 15 | Deployment & Infrastructure (Docker, CI/CD) |
+| 7 | Social Graph — Follow/Unfollow system |
+| 8 | Voice Rooms (LiveKit integration) |
+| 9 | Audio Stories (MinIO / S3 storage) |
+| 10 | Chat & Direct Messaging (WebSocket + Redis) |
+| 11 | Wallet & Payments |
+| 12 | Notifications (FCM + Celery) |
+| 13 | Security Hardening |
+| 14 | Testing (pytest, 80%+ coverage) |
+| 15 | Observability & Monitoring (structlog, Prometheus, Sentry) |
+| 16 | Deployment & Infrastructure (Docker, CI/CD) |
 
 ---
 
@@ -231,6 +241,11 @@ app/services/auth/dependencies.py → HTTPException (401/403)
 ### Mixin Usage
 All new models: `class MyModel(UUIDMixin, TimestampMixin, Base):`
 
+### Soft Delete Pattern
+- `deleted_at` (DateTime nullable) + `is_active = False` set simultaneously
+- Filter active records: `.where(User.is_active.is_(True), User.deleted_at.is_(None))`
+- **Do not hard-delete user records** — always soft-delete
+
 ### Adding a New Model
 1. Create `app/models/<name>.py` — inherit from `UUIDMixin`, `TimestampMixin`, `Base`
 2. Add to `alembic/env.py` model imports block
@@ -254,11 +269,28 @@ async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
 
 ---
 
+## Exception → HTTP Status Map
+
+| Exception | HTTP | Code |
+|-----------|------|------|
+| `AuthTokenInvalidError` | 401 | `invalid_token` |
+| `AuthTokenExpiredError` | 401 | `token_expired` |
+| `AuthTokenRevokedError` | 401 | `token_revoked` |
+| `AuthError` (catch-all) | 401 | `auth_error` |
+| `InactiveUserError` | 403 | `account_inactive` |
+| `UserNotFoundError` | 404 | `user_not_found` |
+| `UsernameConflictError` | 409 | `username_conflict` |
+| `ReservedUsernameError` | 422 | `reserved_username` |
+| `FirebaseUnavailableError` | 503 | `firebase_unavailable` |
+
+---
+
 ## Forbidden Actions
 
 | Forbidden | Reason |
 |-----------|--------|
 | Modify existing migration files | Breaks migration history |
+| Hard-delete user records | Use `UserRepository.soft_delete()` instead |
 | Add blocking I/O / `time.sleep()` | Blocks the async event loop |
 | Import `requests` (sync HTTP) | Use `httpx` async instead |
 | Return ORM objects from route handlers | Breaks serialisation — return schemas |
@@ -272,6 +304,7 @@ async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
 | Register new routers in `app/main.py` | Register in `app/api/v1/__init__.py` |
 | Log Firebase tokens or private keys | Security violation |
 | Call `firebase_admin` directly outside `app/services/auth/` | Violates layer rules |
+| Use reserved usernames in auto-generated content | Check against `RESERVED_USERNAMES` |
 
 ---
 
@@ -310,4 +343,7 @@ async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
 | `get_current_user` returns `User` ORM | Route handlers can serialize directly to any schema without extra DB call |
 | `update_last_seen` is non-fatal | Presence stamping failure must never block login or authenticated requests |
 | Auto-generated username `vee_<uid[:16]>` | Firebase tokens don't guarantee a username; auto-generation ensures non-null constraint |
-| Migration not yet applied | `alembic upgrade head` must be run before starting the server in any environment |
+| Soft delete via `deleted_at` + `is_active=False` | Preserves data integrity; user records never hard-deleted; admin-reversible |
+| `UserPublicRead` separate from `UserRead` | Public profiles exclude private fields (email, phone, birth_date, firebase_uid) |
+| `RESERVED_USERNAMES` frozenset in schemas | Schema-layer enforcement is the first gate; service layer double-checks for safety |
+| Username regex `^[a-z0-9_]{3,30}$` | URL-safe, predictable, lowercase-normalized at validation time |

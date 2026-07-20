@@ -37,17 +37,29 @@ Built with **Python 3.12** and **FastAPI**.
 ```
 app/
 ├── api/            # Route handlers and API versioning
+│   └── v1/
+│       ├── auth.py     # POST /api/v1/auth/login, GET /api/v1/auth/me
+│       └── users.py    # GET/PATCH/DELETE /api/v1/users/me, GET /api/v1/users/{username}
 ├── core/
-│   └── config.py   # Pydantic Settings — all env vars
+│   ├── config.py   # Pydantic Settings — all env vars
+│   └── exceptions.py # Domain exception hierarchy
 ├── db/
 │   ├── base.py     # DeclarativeBase for all ORM models
 │   ├── database.py # Async engine with production pool config
 │   ├── session.py  # Session factory and get_db dependency
 │   └── __init__.py # Public exports
-├── models/         # ORM models (future phases)
+├── models/         # ORM models
+│   ├── enums.py    # Gender enum
+│   └── user.py     # User model (with soft-delete support)
 ├── schemas/        # Pydantic request/response schemas
+│   ├── auth.py     # FirebaseTokenPayload, AuthenticatedUser
+│   └── user.py     # UserRead, UserPublicRead, UserUpdate, UserDeletedRead
 ├── services/       # Business logic layer
+│   ├── auth/       # Firebase token verification + get_current_user dependency
+│   ├── identity_service.py # Login orchestration
+│   └── user_service.py     # Profile management, soft-delete
 ├── repositories/   # Data access layer
+│   └── user_repo.py # All User DB queries
 ├── middleware/     # Custom ASGI middleware
 ├── utils/
 │   └── db_url.py   # PostgreSQL URL normalizer for asyncpg
@@ -65,7 +77,7 @@ alembic.ini         # Alembic config (DATABASE_URL from env)
 
 ```bash
 cp .env.example .env
-# Edit .env and set your DATABASE_URL
+# Edit .env and set your DATABASE_URL and Firebase credentials
 ```
 
 ### 2. Create virtual environment
@@ -128,7 +140,7 @@ alembic history
 
 ### Adding new models
 
-1. Create your model in `app/models/` inheriting from `Base`
+1. Create your model in `app/models/` inheriting from `UUIDMixin`, `TimestampMixin`, `Base`
 2. Import it in `alembic/env.py` under the model imports section
 3. Run `alembic revision --autogenerate -m "add <model>"`
 4. Apply with `alembic upgrade head`
@@ -137,12 +149,49 @@ alembic history
 
 ## API Endpoints
 
+### Public
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | API info and status |
 | GET | `/health` | Health check |
 | GET | `/docs` | Swagger UI |
 | GET | `/redoc` | ReDoc UI |
+| GET | `/api/v1/users/{username}` | Public user profile |
+
+### Protected (Firebase Bearer token required)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/auth/login` | Login / auto-register |
+| GET | `/api/v1/auth/me` | Get own profile (auth namespace) |
+| GET | `/api/v1/users/me` | Get own full profile (users namespace) |
+| PATCH | `/api/v1/users/me` | Update own profile |
+| DELETE | `/api/v1/users/me` | Soft-delete own account |
+
+---
+
+## Error Response Format
+
+All domain errors return a structured JSON body:
+
+```json
+{
+  "error": "machine_readable_code",
+  "message": "Human readable description."
+}
+```
+
+| HTTP Status | Error Code | Cause |
+|-------------|-----------|-------|
+| 401 | `invalid_token` | Malformed Firebase token |
+| 401 | `token_expired` | Firebase token expired |
+| 401 | `token_revoked` | Firebase token revoked |
+| 403 | `account_inactive` | Account suspended or deleted |
+| 404 | `user_not_found` | Username not found or deleted |
+| 409 | `username_conflict` | Username already taken |
+| 422 | `reserved_username` | Username is reserved |
+| 503 | `firebase_unavailable` | Firebase service unreachable |
 
 ---
 
@@ -157,13 +206,13 @@ See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for the full phase-by-phase plan.
 | 3 | ✅ | Documentation & Architecture Governance |
 | 4 | ✅ | Core Domain Models & Authentication Foundation |
 | 5 | ✅ | Identity & Authentication Infrastructure |
-| 6 | ⏳ | Extended User Profile & Follow System |
-| 6 | ⏳ | Voice Rooms (LiveKit) |
-| 7 | ⏳ | Audio Stories (MinIO) |
-| 8 | ⏳ | Chat & Messaging |
-| 9 | ⏳ | Wallet & Payments |
-| 10 | ⏳ | Notifications |
-| 11 | ⏳ | Security Hardening |
-| 12 | ⏳ | Testing |
-| 13 | ⏳ | Observability & Monitoring |
-| 14 | ⏳ | Deployment & Infrastructure |
+| 6 | ✅ | Extended User Profile & Follow System |
+| 7 | ⏳ | Voice Rooms (LiveKit) |
+| 8 | ⏳ | Audio Stories (MinIO) |
+| 9 | ⏳ | Chat & Messaging |
+| 10 | ⏳ | Wallet & Payments |
+| 11 | ⏳ | Notifications |
+| 12 | ⏳ | Security Hardening |
+| 13 | ⏳ | Testing |
+| 14 | ⏳ | Observability & Monitoring |
+| 15 | ⏳ | Deployment & Infrastructure |

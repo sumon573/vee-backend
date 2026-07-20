@@ -9,11 +9,16 @@ Architecture:
     - Inherits TimestampMixin → provides `created_at` and `updated_at`
     - Inherits Base       → registers with SQLAlchemy metadata for Alembic
 
+Soft Delete:
+    - `is_active = False` marks an account as suspended/deactivated.
+    - `deleted_at` records the UTC timestamp of a user-initiated account deletion.
+      NULL means the account is active. Non-null means soft-deleted.
+
 Adding relationships (future phases):
-    - Phase 5: followers / following (self-referential many-to-many)
-    - Phase 6: voice_room_memberships
-    - Phase 7: audio_stories
-    - Phase 8: messages
+    - Phase 6: follows (self-referential many-to-many via Follow model)
+    - Phase 7: voice_room_memberships
+    - Phase 8: audio_stories
+    - Phase 9: messages
 """
 
 import uuid
@@ -36,13 +41,16 @@ class User(UUIDMixin, TimestampMixin, Base):
     Primary key : id           (UUID v4 — from UUIDMixin)
     External key: firebase_uid (Firebase Authentication UID)
     Audit times : created_at, updated_at (from TimestampMixin)
+    Soft delete : deleted_at   (NULL = active; non-null = deleted)
     """
 
     __tablename__ = "users"
 
     __table_args__ = (
-        # Composite index for profile look-ups by active status
+        # Composite index for active-user profile look-ups
         Index("ix_users_is_active_created_at", "is_active", "created_at"),
+        # Index for efficient soft-delete filtering
+        Index("ix_users_deleted_at", "deleted_at"),
     )
 
     # ------------------------------------------------------------------
@@ -62,11 +70,11 @@ class User(UUIDMixin, TimestampMixin, Base):
     # ------------------------------------------------------------------
 
     username: Mapped[str] = mapped_column(
-        String(50),
+        String(30),
         unique=True,
         nullable=False,
         index=True,
-        doc="URL-safe unique handle chosen by the user (e.g. @alice).",
+        doc="URL-safe unique handle chosen by the user (e.g. @alice). 3–30 lowercase alphanumeric chars and underscores.",
     )
 
     display_name: Mapped[str] = mapped_column(
@@ -92,13 +100,13 @@ class User(UUIDMixin, TimestampMixin, Base):
     avatar_url: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
-        doc="URL to the user's profile picture (stored in MinIO/S3 in Phase 7).",
+        doc="URL to the user's profile picture (stored in MinIO/S3 in Phase 8).",
     )
 
     bio: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
-        doc="Short user bio shown on the profile page.",
+        doc="Short user bio shown on the profile page (max 500 chars enforced at schema layer).",
     )
 
     # ------------------------------------------------------------------
@@ -134,7 +142,21 @@ class User(UUIDMixin, TimestampMixin, Base):
         nullable=False,
         default=True,
         server_default="true",
-        doc="False if the account is suspended or soft-deleted.",
+        doc="False if the account is suspended (admin action). Use deleted_at for user-initiated deletions.",
+    )
+
+    # ------------------------------------------------------------------
+    # Soft delete
+    # ------------------------------------------------------------------
+
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc=(
+            "UTC timestamp of when the user soft-deleted their own account. "
+            "NULL = active account. Non-null = user-deleted account. "
+            "is_active is set to False simultaneously."
+        ),
     )
 
     # ------------------------------------------------------------------

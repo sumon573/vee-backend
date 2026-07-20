@@ -12,9 +12,12 @@ To add a new resource:
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth
+from app.api.v1 import auth, users
 
 router = APIRouter()
 
 # Auth routes — /api/v1/auth/...
 router.include_router(auth.router)
+
+# User profile routes — /api/v1/users/...  (Phase 6)
+router.include_router(users.router)

@@ -6,6 +6,11 @@ Architecture:
     - Raises domain exceptions, not HTTP exceptions.
     - Receives AsyncSession from the API layer via dependency injection.
     - Never writes SQL directly; always delegates to UserRepository.
+
+Phase 6 additions:
+    - update_my_profile()  — validate + apply partial profile updates
+    - soft_delete_user()   — initiate user-requested account deletion
+    - get_by_username()    — public profile look-up by username
 """
 
 import logging
@@ -14,9 +19,16 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import (
+    InactiveUserError,
+    ReservedUsernameError,
+    UserNotFoundError,
+    UsernameConflictError,
+)
 from app.models.user import User
 from app.repositories.user_repo import UserRepository
 from app.schemas.auth import FirebaseTokenPayload
+from app.schemas.user import RESERVED_USERNAMES, UserUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +142,98 @@ class UserService:
     async def get_by_id(self, user_id: uuid.UUID) -> Optional[User]:
         """Alias for get_profile — backward compatible."""
         return await self._repo.get_by_id(user_id)
+
+    async def get_by_username(self, username: str) -> User:
+        """
+        Look up a public user profile by username.
+
+        Only returns active, non-deleted accounts.
+
+        Args:
+            username: The username to look up (case-sensitive).
+
+        Returns:
+            The matching User instance.
+
+        Raises:
+            UserNotFoundError: if no active user with that username exists.
+        """
+        user = await self._repo.get_by_username(username)
+        if user is None or not user.is_active or user.deleted_at is not None:
+            raise UserNotFoundError(f"No active user found with username '{username}'.")
+        return user
+
+    # ------------------------------------------------------------------
+    # Profile update
+    # ------------------------------------------------------------------
+
+    async def update_my_profile(
+        self,
+        current_user: User,
+        update_data: UserUpdate,
+    ) -> User:
+        """
+        Apply a partial update to the authenticated user's own profile.
+
+        Validates that:
+        - A requested username is not reserved.
+        - A requested username is not already taken by another user.
+
+        Args:
+            current_user: The authenticated User ORM instance (session-tracked).
+            update_data:  Validated UserUpdate schema with fields to change.
+
+        Returns:
+            The updated User instance.
+
+        Raises:
+            ReservedUsernameError:  if the new username is reserved.
+            UsernameConflictError:  if the new username is taken by another user.
+        """
+        data = update_data.model_dump(exclude_unset=True, exclude_none=True)
+
+        new_username: Optional[str] = data.get("username")
+        if new_username is not None and new_username != current_user.username:
+            # Reserved-name check (belt-and-suspenders alongside schema validator)
+            if new_username.lower() in RESERVED_USERNAMES:
+                raise ReservedUsernameError()
+
+            # Uniqueness check
+            existing = await self._repo.get_by_username(new_username)
+            if existing is not None and existing.id != current_user.id:
+                raise UsernameConflictError()
+
+        updated = await self._repo.update_profile(current_user, data)
+        logger.info(
+            "user_service.profile_updated user_id=%s fields=%s",
+            str(current_user.id),
+            list(data.keys()),
+        )
+        return updated
+
+    # ------------------------------------------------------------------
+    # Soft delete
+    # ------------------------------------------------------------------
+
+    async def soft_delete_user(self, user: User) -> User:
+        """
+        Soft-delete the authenticated user's own account.
+
+        Sets deleted_at to UTC now and is_active to False.
+        The record is retained in the database for data integrity.
+
+        Args:
+            user: The authenticated User ORM instance (session-tracked).
+
+        Returns:
+            The updated User instance with deleted_at populated.
+        """
+        deleted = await self._repo.soft_delete(user)
+        logger.info(
+            "user_service.soft_deleted user_id=%s",
+            str(user.id),
+        )
+        return deleted
 
     # ------------------------------------------------------------------
     # Presence

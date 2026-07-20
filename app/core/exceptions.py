@@ -9,11 +9,14 @@ Rules:
       consistent JSON error body.
 
 Exception → HTTP status mapping (enforced in app/main.py):
-    AuthTokenInvalidError  → 401
-    AuthTokenExpiredError  → 401
-    AuthTokenRevokedError  → 401
+    AuthTokenInvalidError    → 401
+    AuthTokenExpiredError    → 401
+    AuthTokenRevokedError    → 401
     FirebaseUnavailableError → 503
-    InactiveUserError      → 403
+    InactiveUserError        → 403
+    UserNotFoundError        → 404
+    UsernameConflictError    → 409
+    ReservedUsernameError    → 422
 """
 
 
@@ -86,3 +89,24 @@ class InactiveUserError(VeeError):
 
     code = "account_inactive"
     message = "This account has been suspended or deactivated."
+
+
+class UserNotFoundError(VeeError):
+    """Requested user record does not exist."""
+
+    code = "user_not_found"
+    message = "User not found."
+
+
+class UsernameConflictError(VeeError):
+    """Attempted username is already taken by another account."""
+
+    code = "username_conflict"
+    message = "This username is already taken. Please choose a different one."
+
+
+class ReservedUsernameError(VeeError):
+    """Attempted username is on the reserved list and cannot be claimed by users."""
+
+    code = "reserved_username"
+    message = "This username is reserved and cannot be used."

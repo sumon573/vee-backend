@@ -11,6 +11,40 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.4.0] — 2026-07-20
+
+### Added — Phase 6: Extended User Profile Management
+
+#### Domain Exceptions
+- `app/core/exceptions.py` — added `UserNotFoundError` (404), `UsernameConflictError` (409), `ReservedUsernameError` (422)
+
+#### User Model
+- `app/models/user.py` — added `deleted_at` column (`TIMESTAMP WITH TIME ZONE`, nullable); NULL = active account, non-null = user-initiated soft-delete; reduced `username` column size from `VARCHAR(50)` to `VARCHAR(30)` to match validation rule; added `ix_users_deleted_at` index for efficient soft-delete filtering
+
+#### Schemas
+- `app/schemas/user.py` — added username regex validation (`^[a-z0-9_]{3,30}$`); added `RESERVED_USERNAMES` frozenset (80+ reserved names); added `@field_validator` for both `UserBase.username` and `UserUpdate.username`; added `UserPublicRead` (public profile — excludes firebase_uid, email, phone, birth_date); added `UserDeletedRead` (soft-delete confirmation response); updated `UserUpdate` to support `username` changes with validation
+
+#### Repository
+- `app/repositories/user_repo.py` — added `soft_delete()` (sets deleted_at + is_active=False, logs event); added `search_by_username_prefix()` (ILIKE prefix match, active-only, max 100 results, ordered by username)
+
+#### Service
+- `app/services/user_service.py` — added `get_by_username()` (active-only look-up with UserNotFoundError); added `update_my_profile()` (validates reserved names + uniqueness before delegating to repo); added `soft_delete_user()` (delegates to repo, logs event)
+
+#### API Endpoints (Phase 6)
+- `GET /api/v1/users/me` — protected; returns own full profile (`UserRead`)
+- `PATCH /api/v1/users/me` — protected; partial profile update (`UserUpdate` → `UserRead`)
+- `DELETE /api/v1/users/me` — protected; soft-delete own account (`UserDeletedRead`)
+- `GET /api/v1/users/{username}` — public; returns public profile (`UserPublicRead`); 404 on missing/deleted
+
+#### Application Wiring
+- `app/api/v1/__init__.py` — registered `users.router` at `/api/v1/users/`
+- `app/main.py` — added exception handlers: `UserNotFoundError` → 404, `UsernameConflictError` → 409, `ReservedUsernameError` → 422; reordered handlers most-specific-first
+
+#### Migration
+- `alembic/versions/a8f3d1c90e2b_phase_6_add_deleted_at_to_users.py` — adds `deleted_at` column, `ix_users_deleted_at` index, shrinks `username` to `VARCHAR(30)`
+
+---
+
 ## [0.3.0] — 2026-07-20
 
 ### Added — Phase 5: Identity & Authentication Infrastructure
@@ -32,17 +66,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `app/services/identity_service.py` — `IdentityService`; `login_with_firebase()` (verify → sync → guard inactive → update presence → return User); `get_identity()` (lightweight token introspection); designed for future provider extension
 
 #### Repository
-- `app/repositories/user_repo.py` — all methods implemented: `get_by_id` (session.get), `get_by_firebase_uid` (select+where), `get_by_username`, `get_by_email`, `create` (add+flush+refresh), `update_last_seen` (UTC stamp+flush), `update_profile` (allowlist-guarded setattr+flush), `save` (flush)
+- `app/repositories/user_repo.py` — all methods implemented: `get_by_id`, `get_by_firebase_uid`, `get_by_username`, `get_by_email`, `create`, `update_last_seen`, `update_profile`, `save`
 
 #### Service
-- `app/services/user_service.py` — all methods implemented: `sync_firebase_user()` (get-or-create; auto-generates username `vee_<uid[:16]>`; uses Firebase claims for display_name/email/phone/avatar), `get_profile()`, `get_by_id()`, `update_last_seen()` (non-fatal; swallows errors with warning log)
+- `app/services/user_service.py` — all methods implemented: `sync_firebase_user()`, `get_profile()`, `get_by_id()`, `update_last_seen()`
 
 #### API Endpoints
 - `POST /api/v1/auth/login` — verifies Firebase ID token (Bearer), syncs user, updates presence, returns `UserRead`
 - `GET /api/v1/auth/me` — protected; returns current user profile via `get_current_user` dependency
 
 #### Application Wiring
-- `app/main.py` — global exception handlers: `InactiveUserError` → 403, `FirebaseUnavailableError` → 503, `AuthTokenExpiredError` → 401, `AuthTokenRevokedError` → 401, `AuthError` (catch-all) → 401; all auth error responses follow `{"error": "<code>", "message": "<text>"}` shape
+- `app/main.py` — global exception handlers for all auth errors
 - `.env.example` — Firebase credential fields with setup instructions
 - `requirements.txt` — `firebase-admin>=6.5.0`
 
@@ -59,85 +93,34 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 #### Database Mixins
 - `app/db/mixins.py` — `UUIDMixin` (UUID v4 primary key) and `TimestampMixin` (`created_at` / `updated_at` with `server_default=func.now()`)
 
-#### Schemas (Pydantic v2)
-- `app/schemas/user.py` — `UserBase`, `UserRead` (with `from_attributes=True`), `UserCreate`, `UserUpdate`
-- `app/schemas/auth.py` — `FirebaseTokenPayload` (frozen, maps Firebase JWT claims), `AuthenticatedUser` (lightweight DTO injected into route handlers)
+#### Schemas
+- `app/schemas/user.py` — `UserBase`, `UserRead`, `UserCreate`, `UserUpdate`; Pydantic v2 with `ConfigDict`
+- `app/schemas/auth.py` — `FirebaseTokenPayload` (frozen), `AuthenticatedUser`
 
-#### Authentication Foundation
-- `app/services/auth/__init__.py` — public surface: `verify_firebase_token`, `get_current_user`
-- `app/services/auth/firebase.py` — `verify_firebase_token()` stub with full TODO for Phase 5 firebase-admin integration
-- `app/services/auth/dependencies.py` — `get_current_user` FastAPI dependency stub using `HTTPBearer`; raises `HTTP 501` until Phase 5 implements real verification
+#### Repository
+- `app/repositories/user_repo.py` — `UserRepository` skeleton
 
-#### Service & Repository Skeletons
-- `app/repositories/user_repo.py` — `UserRepository` with method signatures: `get_by_id`, `get_by_firebase_uid`, `get_by_username`, `get_by_email`, `create`, `save`
-- `app/services/user_service.py` — `UserService` with method signatures: `get_or_create_from_firebase`, `get_by_id`, `update_last_seen`
+#### Service
+- `app/services/user_service.py` — `UserService` skeleton
 
-#### API Structure
-- `app/api/v1/__init__.py` — combined v1 `APIRouter`; new resource routers registered here without touching `app/main.py`
-- `app/api/v1/auth.py` — `APIRouter(prefix="/auth", tags=["auth"])` with structured TODO for Phase 5 endpoints
-
-#### Application Wiring
+#### API & Routing
+- `app/api/v1/__init__.py` — combined v1 router
+- `app/api/v1/auth.py` — auth router structure
 - `app/main.py` — v1 router mounted at `/api/v1`
-- `alembic/env.py` — `User` model imported so Alembic detects `users` table
 
-#### Migrations
-- `alembic/versions/<timestamp>_phase_4_add_users_table.py` — auto-generated migration creating `gender_enum` PostgreSQL type and `users` table with all columns and indexes
-
-### Added — Phase 3: Documentation & Architecture Governance
-
-- `ARCHITECTURE.md` — full architecture reference (layers, request flow, scaling, DB config)
-- `PROJECT_ROADMAP.md` — master phase roadmap (14 phases, goal/deliverables/success criteria per phase)
-- `CONTRIBUTING.md` — branch strategy, Conventional Commits, coding standards, PR rules, review checklist
-- `CHANGELOG.md` — this file; Keep a Changelog format
-- `AI_AGENT.md` — instruction manual for future AI agents
-- `README.md` updated with documentation links table and roadmap status table
+#### Migration
+- `alembic/versions/cfeccaac3dc7_phase_4_add_users_table.py` — creates `gender_enum` PostgreSQL type and `users` table with all columns and indexes
 
 ---
 
 ## [0.1.0] — 2026-07-20
 
-### Added — Phase 2: Database Foundation
+### Added — Phase 1 & 2: Backend & Database Foundation
 
-- `app/db/base.py` — `DeclarativeBase` shared by all future ORM models
-- `app/db/database.py` — async SQLAlchemy engine with production connection pool settings (`pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`, `pool_recycle=3600`)
-- `app/db/session.py` — `AsyncSessionLocal` session factory and `get_db` FastAPI dependency (async generator with rollback-on-error)
-- `app/db/__init__.py` — public re-exports: `Base`, `engine`, `AsyncSessionLocal`, `get_db`
-- `app/utils/db_url.py` — `normalize_database_url()` utility: converts `postgres://` / `postgresql://` to `postgresql+asyncpg://` and strips `sslmode` / SSL query parameters incompatible with asyncpg
-- `alembic/` — Alembic initialized with async migration support (`asyncio.run` + `async_engine_from_config`)
-- `alembic/env.py` — configured to read `DATABASE_URL` from environment, normalize it, and import `Base.metadata` for autogenerate
-- `alembic.ini` — `sqlalchemy.url` delegated to environment variable
-- `DATABASE_URL` field added to `app/core/config.py`
-- `requirements.txt` updated: `sqlalchemy>=2.0.0`, `alembic>=1.13.0`, `asyncpg>=0.29.0`
-- `.env.example` updated with `DATABASE_URL` example
-- `README.md` updated with Database Setup section and migration commands
-
-### Added — Phase 1: Backend Foundation
-
-- Python 3.12 runtime
-- `app/main.py` — FastAPI application with `CORSMiddleware`, Swagger UI (`/docs`), ReDoc (`/redoc`)
-- `app/core/config.py` — `pydantic_settings.BaseSettings` for environment-based configuration
-- `GET /` — root endpoint returning `{"name", "version", "status", "environment", "docs"}`
-- `GET /health` — health check endpoint returning `{"status": "healthy"}`
-- Clean architecture folder scaffold: `api/`, `core/`, `db/`, `models/`, `schemas/`, `services/`, `repositories/`, `middleware/`, `utils/`
-- `requirements.txt` — minimal dependencies: `fastapi`, `uvicorn[standard]`, `pydantic`, `pydantic-settings`, `python-dotenv`
-- `.env.example` — environment variable template
-- `.gitignore` — Python standard ignores
-- `README.md` — project overview, tech stack, getting started guide, API endpoints
-
----
-
-## Release Notes Format
-
-When cutting a new release:
-
-1. Move `[Unreleased]` content to a new versioned section
-2. Add the release date: `## [X.Y.Z] — YYYY-MM-DD`
-3. Group changes under: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`
-4. Update `[Unreleased]` link at the bottom of this file
-
----
-
-[Unreleased]: https://github.com/sumon573/vee-backend/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/sumon573/vee-backend/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/sumon573/vee-backend/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/sumon573/vee-backend/releases/tag/v0.1.0
+- FastAPI application with Uvicorn, Pydantic Settings, CORS
+- `GET /` and `GET /health` endpoints
+- Swagger UI (`/docs`) and ReDoc (`/redoc`)
+- SQLAlchemy 2.x async engine (asyncpg), `DeclarativeBase`, `get_db` dependency
+- `normalize_database_url()` utility
+- Alembic configured for async migrations
+- `requirements.txt`, `.env.example`, `.gitignore`, `README.md`
