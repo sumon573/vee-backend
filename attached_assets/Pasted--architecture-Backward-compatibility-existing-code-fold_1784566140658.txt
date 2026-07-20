@@ -1,0 +1,212 @@
+আগের architecture পরিবর্তন করবে না। Backward compatibility বজায় রাখবে। কোনো existing code, folder structure, documentation বা configuration অপ্রয়োজনীয়ভাবে পরিবর্তন, rename বা refactor করবে না।
+
+## Step 0 — Repository Analysis (অবশ্যই করবে)
+
+কোনো code লেখার আগে:
+
+1. Repository scan করবে।
+2. README.md পড়বে।
+3. ARCHITECTURE.md পড়বে।
+4. PROJECT_ROADMAP.md পড়বে।
+5. AI_AGENT.md সম্পূর্ণ পড়বে।
+6. বর্তমান phase এবং completed phase শনাক্ত করবে।
+7. Requirement অস্পষ্ট হলে আগে প্রশ্ন করবে।
+
+---
+
+# Current Phase
+
+Phase 4 — Core Domain Models & Authentication Foundation
+
+এই phase-এর উদ্দেশ্য শুধুমাত্র authentication-এর ভিত্তি এবং core database model তৈরি করা।
+
+---
+
+# Requirements
+
+## 1. User Model
+
+Production-ready User model তৈরি করবে।
+
+কমপক্ষে নিচের field থাকবে:
+
+- id (UUID Primary Key)
+- firebase_uid (Unique)
+- username (Unique)
+- display_name
+- email (nullable)
+- phone (nullable)
+- avatar_url
+- bio
+- gender (nullable)
+- birth_date (nullable)
+- is_verified
+- is_active
+- created_at
+- updated_at
+- last_seen_at
+
+SQLAlchemy 2.x typed mapping ব্যবহার করবে।
+
+---
+
+## 2. Base Mixins
+
+Reusable mixin তৈরি করবে।
+
+যেমন:
+
+- TimestampMixin
+- UUIDMixin
+
+Duplicate code লেখা যাবে না।
+
+---
+
+## 3. Enum
+
+প্রয়োজন হলে enum আলাদা file-এ রাখবে।
+
+যেমন:
+
+- Gender
+
+---
+
+## 4. Authentication Foundation
+
+Firebase Authentication verify করার জন্য structure তৈরি করবে।
+
+এখন শুধুমাত্র foundation তৈরি করবে।
+
+যেমন:
+
+app/services/auth/
+
+এর ভিতরে:
+
+- verify_firebase_token()
+- current_user dependency-এর structure
+
+কিন্তু এখন business logic implement করবে না।
+
+TODO comment ব্যবহার করতে পারো।
+
+---
+
+## 5. API Structure
+
+Authentication route structure তৈরি করবে।
+
+যেমন:
+
+/api/v1/auth
+
+কিন্তু এখন login/register endpoint implement করবে না।
+
+শুধু scalable structure তৈরি করবে।
+
+---
+
+## 6. Repository Layer
+
+UserRepository skeleton তৈরি করবে।
+
+CRUD implement করবে না।
+
+Method signature থাকবে।
+
+---
+
+## 7. Service Layer
+
+UserService skeleton তৈরি করবে।
+
+Business logic implement করবে না।
+
+---
+
+## 8. Alembic
+
+User model detect হচ্ছে কিনা নিশ্চিত করবে।
+
+Migration generate করবে কিন্তু apply করবে না।
+
+---
+
+## 9. Documentation
+
+README.md update করবে।
+
+PROJECT_ROADMAP.md-এ Phase 4 complete mark করবে।
+
+CHANGELOG.md update করবে।
+
+AI_AGENT.md update করবে।
+
+---
+
+# Strict Rules
+
+কোনো Chat feature নয়।
+
+কোনো Story নয়।
+
+কোনো Wallet নয়।
+
+কোনো Voice Room নয়।
+
+কোনো Notification নয়।
+
+কোনো Firebase business logic নয়।
+
+কোনো API implementation নয়।
+
+কোনো Docker পরিবর্তন নয়।
+
+কোনো LiveKit নয়।
+
+কোনো MinIO নয়।
+
+---
+
+# Quality Rules
+
+Clean Architecture অনুসরণ করবে।
+
+SOLID principles অনুসরণ করবে।
+
+Type hints ব্যবহার করবে।
+
+Proper docstring লিখবে।
+
+Code production-ready হবে।
+
+---
+
+# Final Validation
+
+শেষে নিশ্চিত করবে:
+
+✅ Import error নেই।
+
+✅ Alembic migration successfully generate হয়েছে।
+
+✅ User model detect হয়েছে।
+
+✅ Existing code intact।
+
+✅ Documentation sync আছে।
+
+---
+
+# Git
+
+শেষে:
+
+1. Summary দেবে।
+2. কী কী file তৈরি হয়েছে তার তালিকা দেবে।
+3. Commit করবে।
+4. GitHub-এ push করবে।
+5. Commit hash দেখাবে।
+6. Migration filename দেখাবে।
