@@ -3,7 +3,7 @@ Authentication service package.
 
 Public surface:
     verify_firebase_token   — verifies a raw Firebase ID token string
-    get_current_user        — FastAPI dependency that resolves the caller
+    get_current_user        — FastAPI dependency; returns the resolved User ORM model
 """
 
 from app.services.auth.dependencies import get_current_user

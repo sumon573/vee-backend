@@ -156,7 +156,8 @@ See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for the full phase-by-phase plan.
 | 2 | ✅ | Database Foundation |
 | 3 | ✅ | Documentation & Architecture Governance |
 | 4 | ✅ | Core Domain Models & Authentication Foundation |
-| 5 | ⏳ | Firebase Auth Implementation & Extended User Profile |
+| 5 | ✅ | Identity & Authentication Infrastructure |
+| 6 | ⏳ | Extended User Profile & Follow System |
 | 6 | ⏳ | Voice Rooms (LiveKit) |
 | 7 | ⏳ | Audio Stories (MinIO) |
 | 8 | ⏳ | Chat & Messaging |

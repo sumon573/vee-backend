@@ -15,7 +15,7 @@
 | **Database** | PostgreSQL (asyncpg driver) |
 | **ORM** | SQLAlchemy 2.x (async) |
 | **Migrations** | Alembic |
-| **Auth** | Firebase Authentication (foundation in place; full implementation Phase 5) |
+| **Auth** | Firebase Authentication (fully live — Phase 5 complete) |
 | **Entry point** | `uvicorn app.main:app --reload` |
 | **Docs** | `GET /docs` (Swagger UI) |
 
@@ -27,55 +27,109 @@
 app/
 ├── api/
 │   └── v1/
-│       ├── __init__.py   ← combined v1 router — mounted at /api/v1
-│       └── auth.py       ← /api/v1/auth (structure only; endpoints in Phase 5)
+│       ├── __init__.py         ← combined v1 router — mounted at /api/v1
+│       └── auth.py             ← POST /api/v1/auth/login, GET /api/v1/auth/me
 ├── core/
-│   └── config.py         ← All env vars via pydantic_settings.BaseSettings
+│   ├── config.py               ← All env vars via pydantic_settings.BaseSettings
+│   └── exceptions.py           ← Domain exception hierarchy (AuthError, InactiveUserError, …)
 ├── db/
-│   ├── base.py           ← DeclarativeBase — ALL models inherit from here
-│   ├── database.py       ← Async SQLAlchemy engine (pool_size=10, max_overflow=20)
-│   ├── mixins.py         ← UUIDMixin (UUID v4 PK), TimestampMixin (created_at/updated_at)
-│   ├── session.py        ← AsyncSessionLocal + get_db FastAPI dependency
-│   └── __init__.py       ← Exports: Base, engine, AsyncSessionLocal, get_db
+│   ├── base.py                 ← DeclarativeBase — ALL models inherit from here
+│   ├── database.py             ← Async SQLAlchemy engine (pool_size=10, max_overflow=20)
+│   ├── mixins.py               ← UUIDMixin (UUID v4 PK), TimestampMixin (created_at/updated_at)
+│   ├── session.py              ← AsyncSessionLocal + get_db FastAPI dependency
+│   └── __init__.py             ← Exports: Base, engine, AsyncSessionLocal, get_db
 ├── models/
-│   ├── enums.py          ← Gender enum (str-based)
-│   └── user.py           ← User ORM model (14 fields, UUID PK, firebase_uid, etc.)
+│   ├── enums.py                ← Gender enum (str-based)
+│   └── user.py                 ← User ORM model (14 fields, UUID PK, firebase_uid, …)
 ├── schemas/
-│   ├── auth.py           ← FirebaseTokenPayload, AuthenticatedUser
-│   └── user.py           ← UserBase, UserRead, UserCreate, UserUpdate
+│   ├── auth.py                 ← FirebaseTokenPayload (frozen), AuthenticatedUser
+│   └── user.py                 ← UserBase, UserRead, UserCreate, UserUpdate
 ├── services/
 │   ├── auth/
-│   │   ├── __init__.py   ← exports verify_firebase_token, get_current_user
-│   │   ├── firebase.py   ← verify_firebase_token() stub (TODO Phase 5)
-│   │   └── dependencies.py ← get_current_user FastAPI dependency stub (TODO Phase 5)
-│   └── user_service.py   ← UserService skeleton (TODO Phase 5)
+│   │   ├── __init__.py         ← exports verify_firebase_token, get_current_user
+│   │   ├── firebase_init.py    ← Firebase Admin SDK singleton (env var credentials)
+│   │   ├── firebase.py         ← verify_firebase_token() — full implementation
+│   │   └── dependencies.py     ← get_current_user FastAPI dependency — full implementation
+│   ├── identity_service.py     ← IdentityService: login_with_firebase(), get_identity()
+│   └── user_service.py         ← UserService: sync_firebase_user(), get_profile(), update_last_seen()
 ├── repositories/
-│   └── user_repo.py      ← UserRepository skeleton (TODO Phase 5)
-├── middleware/            ← ASGI middleware — currently empty
+│   └── user_repo.py            ← UserRepository — all methods implemented
+├── middleware/                  ← ASGI middleware — currently empty
 ├── utils/
-│   └── db_url.py         ← normalize_database_url() — strips sslmode, fixes scheme
-└── main.py               ← FastAPI app, CORS, /, /health, mounts /api/v1
+│   └── db_url.py               ← normalize_database_url()
+└── main.py                     ← FastAPI app, CORS, exception handlers, mounts /api/v1
 
 alembic/
 ├── versions/
-│   └── cfeccaac3dc7_phase_4_add_users_table.py  ← users table + gender_enum
-├── env.py                ← Imports User model; async migration runner
+│   └── cfeccaac3dc7_phase_4_add_users_table.py  ← users table + gender_enum (not yet applied)
+├── env.py                      ← imports User model; async migration runner
 └── script.py.mako
-alembic.ini               ← Config (DATABASE_URL from env, not hardcoded)
-requirements.txt
-.env.example
+alembic.ini
+requirements.txt                ← includes firebase-admin>=6.5.0
+.env.example                    ← includes Firebase credential fields
 ```
 
 ---
 
 ## Current Phase
 
-**Phase 4 — Core Domain Models & Authentication Foundation** ✅ Complete
+**Phase 5 — Identity & Authentication Infrastructure** ✅ Complete
 
 Next phase:
-- ⏳ Phase 5 — Firebase Auth Implementation & Extended User Profile
+- ⏳ Phase 6 — Extended User Profile & Follow System
 
 See `PROJECT_ROADMAP.md` for the complete phase list.
+
+---
+
+## Live API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/` | None | API status |
+| GET | `/health` | None | Health check |
+| GET | `/docs` | None | Swagger UI |
+| POST | `/api/v1/auth/login` | Bearer Firebase token | Login / auto-register |
+| GET | `/api/v1/auth/me` | Bearer Firebase token | Get current user profile |
+
+---
+
+## Authentication Flow
+
+```
+Client (mobile/web)
+    │
+    │  POST /api/v1/auth/login
+    │  Authorization: Bearer <firebase_id_token>
+    ▼
+FastAPI Router (app/api/v1/auth.py)
+    │
+    │  HTTPBearer extracts token
+    ▼
+IdentityService.login_with_firebase(token)
+    │
+    ├─► verify_firebase_token(token)
+    │       └─► firebase_admin.auth.verify_id_token()  [thread-pool executor]
+    │               ├─ ExpiredIdTokenError   → AuthTokenExpiredError  → HTTP 401
+    │               ├─ RevokedIdTokenError   → AuthTokenRevokedError  → HTTP 401
+    │               ├─ InvalidIdTokenError   → AuthTokenInvalidError  → HTTP 401
+    │               └─ FirebaseError         → FirebaseUnavailableError → HTTP 503
+    │
+    ├─► UserService.sync_firebase_user(payload)
+    │       └─► UserRepository.get_by_firebase_uid()
+    │               ├─ Found    → return existing User
+    │               └─ Not found → UserRepository.create(new User)
+    │                             (username auto-generated: vee_<uid[:16]>)
+    │
+    ├─► Guard: user.is_active == False → InactiveUserError → HTTP 403
+    │
+    ├─► UserService.update_last_seen(user)   [non-fatal]
+    │
+    └─► return User ORM instance
+    │
+FastAPI Router
+    └─► UserRead.model_validate(user)  → JSON response
+```
 
 ---
 
@@ -83,41 +137,39 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 
 ### Phase 1 — Backend Foundation
 - FastAPI app with CORS, Swagger, ReDoc
-- `GET /` → JSON status response
-- `GET /health` → `{"status": "healthy"}`
+- `GET /` and `GET /health`
 - Pydantic Settings config in `app/core/config.py`
-- `requirements.txt`, `.env.example`, `.gitignore`, `README.md`
 
 ### Phase 2 — Database Foundation
 - SQLAlchemy 2.x async engine (asyncpg)
-- `DeclarativeBase` in `app/db/base.py`
-- Production pool config: `pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`, `pool_recycle=3600`
-- `get_db` async dependency with rollback-on-error
-- `normalize_database_url()` utility — converts any PostgreSQL URL scheme to `postgresql+asyncpg://`, strips psycopg2-only params (`sslmode`, `sslcert`, etc.)
-- Alembic configured for async migrations; reads `DATABASE_URL` from env
+- `DeclarativeBase`, production pool config, `get_db` dependency
+- `normalize_database_url()` utility
+- Alembic configured for async migrations
 
 ### Phase 3 — Documentation
-- `ARCHITECTURE.md` — full architecture reference
-- `PROJECT_ROADMAP.md` — master phase roadmap
-- `CONTRIBUTING.md` — branch, commit, and review standards
-- `CHANGELOG.md` — version history
-- `AI_AGENT.md` — this file
-- `README.md` updated with links
+- `ARCHITECTURE.md`, `PROJECT_ROADMAP.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `AI_AGENT.md`
 
 ### Phase 4 — Core Domain Models & Authentication Foundation
-- `app/models/enums.py` — `Gender` string enum
-- `app/db/mixins.py` — `UUIDMixin` (UUID v4 PK) and `TimestampMixin` (`created_at`/`updated_at`)
-- `app/models/user.py` — `User` model with 14 columns; composite index on `(is_active, created_at)`
-- `app/schemas/user.py` — `UserBase`, `UserRead`, `UserCreate`, `UserUpdate`
-- `app/schemas/auth.py` — `FirebaseTokenPayload` (frozen, maps Firebase JWT claims), `AuthenticatedUser`
-- `app/services/auth/` — `verify_firebase_token()` and `get_current_user` stubs with full Phase 5 TODO guidance
-- `app/repositories/user_repo.py` — `UserRepository` with typed method signatures (not yet implemented)
-- `app/services/user_service.py` — `UserService` with typed method signatures (not yet implemented)
-- `app/api/v1/__init__.py` — combined v1 router
-- `app/api/v1/auth.py` — auth router at `/api/v1/auth` (structure only)
-- `app/main.py` — v1 router mounted at `/api/v1`
-- `alembic/env.py` — `User` imported for Alembic detection
-- Migration `cfeccaac3dc7_phase_4_add_users_table.py` — creates `gender_enum` + `users` table (generated; **not yet applied**)
+- `app/models/enums.py` — `Gender` enum
+- `app/db/mixins.py` — `UUIDMixin`, `TimestampMixin`
+- `app/models/user.py` — `User` ORM model with 14 columns
+- `app/schemas/user.py`, `app/schemas/auth.py`
+- Skeleton stubs for auth services and repositories
+- v1 router mounted at `/api/v1`
+- Alembic migration generated (not yet applied — apply in Phase 6 setup)
+
+### Phase 5 — Identity & Authentication Infrastructure
+- `app/core/exceptions.py` — full domain exception hierarchy
+- `app/services/auth/firebase_init.py` — Firebase Admin SDK singleton
+- `app/services/auth/firebase.py` — `verify_firebase_token()` — production implementation
+- `app/services/auth/dependencies.py` — `get_current_user` — production implementation
+- `app/services/identity_service.py` — `IdentityService`
+- `app/repositories/user_repo.py` — all methods implemented
+- `app/services/user_service.py` — all methods implemented
+- `app/api/v1/auth.py` — `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
+- `app/main.py` — global exception handlers
+- `firebase-admin>=6.5.0` added to `requirements.txt`
+- `.env.example` updated with Firebase credential fields
 
 ---
 
@@ -125,8 +177,7 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 
 | Phase | Description |
 |-------|-------------|
-| 5 | Firebase Auth Implementation — implement `verify_firebase_token()`, `get_current_user`, `UserRepository`, `UserService`, login endpoint; apply migration |
-| 6 | Extended User Profile & Follow System |
+| 6 | Extended User Profile & Follow System (apply migration first) |
 | 7 | Voice Rooms (LiveKit integration) |
 | 8 | Audio Stories (MinIO / S3 storage) |
 | 9 | Chat & Direct Messaging (WebSocket + Redis) |
@@ -141,15 +192,16 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 
 ## Coding Rules
 
-1. **Python 3.12 only** — use modern syntax; minimum version is 3.12
-2. **Type-annotate everything** — every parameter and return type, no exceptions
-3. **Async for all I/O** — `async def` for routes, services, repositories; no blocking calls
-4. **Pydantic v2 schemas** — use `model_config` not inner `Config` class
-5. **No `print()`** — use the application logger
+1. **Python 3.12 only** — modern syntax; minimum version 3.12
+2. **Type-annotate everything** — every parameter and return type
+3. **Async for all I/O** — `async def` for routes, services, repositories
+4. **Pydantic v2 schemas** — use `model_config` not inner `Config`
+5. **No `print()`** — use `logging.getLogger(__name__)`
 6. **No bare `except:`** — always name the exception type
-7. **No hardcoded secrets** — all config through `app/core/config.py` → env var
-8. **`expire_on_commit=False`** on session — already configured; do not change
-9. **SQLAlchemy 2.x typed mapping** — always use `Mapped[T]` + `mapped_column()`; never use the old `Column()` style
+7. **No hardcoded secrets** — all config through `app/core/config.py`
+8. **`expire_on_commit=False`** — already configured; do not change
+9. **SQLAlchemy 2.x typed mapping** — always `Mapped[T]` + `mapped_column()`
+10. **No sensitive data in logs** — never log tokens, private keys, or passwords
 
 ---
 
@@ -159,123 +211,67 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 ```
 api → services → repositories → db/models
 ```
-- `api` may import from `services` and `schemas` only
-- `services` may import from `repositories`, `schemas`, and `models`
-- `repositories` may import from `models` and `db`
+- `api` imports from `services` and `schemas` only
+- `services` imports from `repositories`, `schemas`, and `models`
+- `repositories` imports from `models` and `db`
 - `utils` and `core` may be imported by any layer
 - **Never import an outer layer from an inner layer**
 
-### Layer Responsibilities
-| Layer | Allowed | Forbidden |
-|-------|---------|-----------|
-| `api/` | Route definitions, schema validation, dependency injection | Business logic, raw SQL |
-| `services/` | Business rules, orchestration | Raw SQL, HTTP status codes |
-| `repositories/` | SQLAlchemy queries | Business logic, HTTP exceptions |
-| `models/` | Table definitions | Business logic, Pydantic |
-| `schemas/` | Request/response DTOs | ORM imports, DB sessions |
-| `utils/` | Pure stateless helpers | DB access, side effects |
+### Exception Flow
+```
+Domain exceptions (app/core/exceptions.py)
+    ↑ raised by
+services / repositories
+    ↓ caught by
+app/main.py exception handlers → structured JSON response
+    OR
+app/services/auth/dependencies.py → HTTPException (401/403)
+```
 
 ### Mixin Usage
-All new models must use `UUIDMixin` and `TimestampMixin` from `app/db/mixins.py`.
-MRO order: `class MyModel(UUIDMixin, TimestampMixin, Base):`
+All new models: `class MyModel(UUIDMixin, TimestampMixin, Base):`
 
 ### Adding a New Model
 1. Create `app/models/<name>.py` — inherit from `UUIDMixin`, `TimestampMixin`, `Base`
-2. Add enum to `app/models/enums.py` if needed
-3. Add import in `alembic/env.py` under the model imports comment block
-4. Run `alembic revision --autogenerate -m "add <name> table"`
-5. Apply: `alembic upgrade head`
+2. Add to `alembic/env.py` model imports block
+3. `alembic revision --autogenerate -m "add <name> table"`
+4. `alembic upgrade head`
 
 ### Adding a New Endpoint
 1. Create `app/api/v1/<resource>.py` with `APIRouter`
-2. Create `app/schemas/<resource>.py` for request/response schemas
-3. Create `app/services/<resource>_service.py` for business logic
-4. Create `app/repositories/<resource>_repo.py` for DB queries
-5. Register the router in `app/api/v1/__init__.py` — **do not touch `app/main.py`**
+2. Create schemas, service, repository
+3. Register router in `app/api/v1/__init__.py` — **do NOT touch `app/main.py`**
+
+### Protected Endpoints
+```python
+from app.services.auth import get_current_user
+from app.models.user import User
+
+@router.get("/protected")
+async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
+    ...
+```
 
 ---
 
 ## Forbidden Actions
 
-**Never do these without explicit user instruction:**
-
 | Forbidden | Reason |
 |-----------|--------|
-| Modify existing migration files in `alembic/versions/` | Breaks migration history |
-| Add `time.sleep()` or blocking I/O | Blocks the async event loop |
+| Modify existing migration files | Breaks migration history |
+| Add blocking I/O / `time.sleep()` | Blocks the async event loop |
 | Import `requests` (sync HTTP) | Use `httpx` async instead |
 | Return ORM objects from route handlers | Breaks serialisation — return schemas |
 | Write SQL in service layer | Violates repository pattern |
 | Write business logic in route handlers | Violates service pattern |
-| Change `app/db/base.py` `Base` class name | Alembic metadata would break |
+| Change `Base` class name in `app/db/base.py` | Alembic metadata breaks |
 | Remove `expire_on_commit=False` | Causes detached instance errors |
 | Install packages not in `requirements.txt` | Undocumented dependency |
-| Commit to `main` directly | Protected branch |
-| Skip updating `CHANGELOG.md` | Version history becomes stale |
-| Skip importing new models in `alembic/env.py` | Migrations won't detect the new table |
-| Use old-style `Column()` in models | Use `Mapped[T]` + `mapped_column()` only |
-| Register new routers in `app/main.py` | Register in `app/api/v1/__init__.py` instead |
-
----
-
-## Git Rules
-
-| Rule | Detail |
-|------|--------|
-| Branch naming | `feat/`, `fix/`, `docs/`, `chore/`, `refactor/`, `test/`, `hotfix/` |
-| Commit format | Conventional Commits: `type(scope): summary` |
-| Commit scope | Affected layer: `auth`, `db`, `rooms`, `api`, `models`, etc. |
-| Merge strategy | Squash merge into `main` |
-| After completing a phase | Commit all changes, push, update `CHANGELOG.md` and `PROJECT_ROADMAP.md` |
-
-### Commit message for a completed phase:
-```
-feat: Phase N — <Phase Name>
-
-- Bullet list of deliverables
-- Keep each line under 72 characters
-```
-
----
-
-## Development Rules
-
-1. **Step 0 always:** scan the repo, read `README.md`, check `PROJECT_ROADMAP.md` before writing any code
-2. **One phase at a time:** do not start Phase N+1 work inside a Phase N commit
-3. **No orphan code:** every file created must be imported or used somewhere
-4. **Validate before committing:** run import checks and Alembic check as a minimum
-5. **No partial commits:** a commit must leave the app in a working state
-
-### Validation Commands
-```bash
-# Check all imports resolve
-python3.12 -c "from app.main import app; print('OK')"
-
-# Check Alembic config + DB connectivity
-python3.12 -m alembic check
-
-# Generate migration (review before applying)
-python3.12 -m alembic revision --autogenerate -m "description"
-
-# Apply migrations
-python3.12 -m alembic upgrade head
-```
-
----
-
-## Definition of Done
-
-A phase is **Done** when:
-
-- [ ] All deliverables listed in `PROJECT_ROADMAP.md` for the phase are present
-- [ ] All success criteria for the phase are met
-- [ ] No import errors (`python3.12 -c "from app.main import app"` succeeds)
-- [ ] `alembic check` exits 0 (if DB changes were made)
-- [ ] `README.md` updated with any new endpoints or env vars
-- [ ] `PROJECT_ROADMAP.md` phase status updated from ⏳ to ✅
-- [ ] `CHANGELOG.md` updated with the phase's additions
-- [ ] `AI_AGENT.md` updated: Current Phase, Completed Work, architecture if changed
-- [ ] Committed and pushed to GitHub with a conventional commit message
+| Skip importing new models in `alembic/env.py` | Migrations won't detect table |
+| Use old-style `Column()` in models | Use `Mapped[T]` + `mapped_column()` |
+| Register new routers in `app/main.py` | Register in `app/api/v1/__init__.py` |
+| Log Firebase tokens or private keys | Security violation |
+| Call `firebase_admin` directly outside `app/services/auth/` | Violates layer rules |
 
 ---
 
@@ -289,20 +285,11 @@ A phase is **Done** when:
 | `DEBUG` | No | `true` | SQLAlchemy query echo |
 | `HOST` | No | `0.0.0.0` | Server bind host |
 | `PORT` | No | `8000` | Server bind port |
-| `ALLOWED_ORIGINS` | No | `["*"]` | CORS allowed origins (lock down in production) |
+| `ALLOWED_ORIGINS` | No | `["*"]` | CORS allowed origins |
 | `DATABASE_URL` | **Yes** | — | PostgreSQL connection string |
-
-**Planned (Phase 5):**
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `FIREBASE_SERVICE_ACCOUNT_PATH` | Yes | Path to Firebase service account JSON |
-
-**DATABASE_URL format accepted:**
-- `postgresql+asyncpg://user:pass@host:port/db` (canonical)
-- `postgresql://user:pass@host:port/db` (auto-normalized)
-- `postgres://user:pass@host:port/db` (auto-normalized)
-- Query params like `sslmode=disable` are stripped automatically
+| `FIREBASE_PROJECT_ID` | **Yes** | `""` | Firebase project ID |
+| `FIREBASE_CLIENT_EMAIL` | **Yes** | `""` | Firebase service account email |
+| `FIREBASE_PRIVATE_KEY` | **Yes** | `""` | Full PEM private key (`\\n` auto-normalized) |
 
 ---
 
@@ -312,12 +299,15 @@ A phase is **Done** when:
 |----------|--------|
 | asyncpg over psycopg2 | Full async; required for SQLAlchemy 2.x async engine |
 | `expire_on_commit=False` | Prevents `MissingGreenlet` errors on detached ORM instances |
-| URL normalization in `utils/db_url.py` | Replit and many hosting platforms provide plain `postgresql://` URLs; asyncpg requires `+asyncpg` scheme |
-| `sslmode` stripped from URL | asyncpg rejects psycopg2-style SSL params; use `connect_args={"ssl": ...}` if SSL control is needed |
-| Alembic reads `DATABASE_URL` from env | Keeps credentials out of `alembic.ini` which is version-controlled |
-| `pool_pre_ping=True` | Cloud PostgreSQL connections drop silently; pre-ping detects and replaces stale ones |
-| Firebase over JWT/bcrypt | Vee is a mobile-first social platform; Firebase handles phone/Google/Apple sign-in natively |
+| URL normalization in `utils/db_url.py` | Replit and many platforms provide `postgresql://`; asyncpg requires `+asyncpg` |
+| Firebase over JWT/bcrypt | Mobile-first; Firebase handles phone/Google/Apple sign-in natively |
+| Firebase SDK runs in thread-pool | `verify_id_token` is synchronous; must not block the asyncio event loop |
+| Singleton Firebase app | `firebase_admin.initialize_app()` must only be called once per process |
+| `\\n` normalization for private key | Hosting platforms often store PEM key with literal `\\n` sequences |
 | UUID v4 primary keys | Avoids sequential ID enumeration; safe to expose in URLs |
-| `UUIDMixin` + `TimestampMixin` | Prevents duplicated columns across models; enforces consistency |
-| New routers registered in `app/api/v1/__init__.py` | Keeps `app/main.py` stable — only one mount point regardless of how many resource routers exist |
-| Migration generated but not applied in Phase 4 | Phase 5 will apply the migration as part of going live with the auth endpoints |
+| `UUIDMixin` + `TimestampMixin` | Prevents duplicated columns; enforces consistency across models |
+| New routers in `app/api/v1/__init__.py` | `app/main.py` has one stable mount point regardless of resource count |
+| `get_current_user` returns `User` ORM | Route handlers can serialize directly to any schema without extra DB call |
+| `update_last_seen` is non-fatal | Presence stamping failure must never block login or authenticated requests |
+| Auto-generated username `vee_<uid[:16]>` | Firebase tokens don't guarantee a username; auto-generation ensures non-null constraint |
+| Migration not yet applied | `alembic upgrade head` must be run before starting the server in any environment |

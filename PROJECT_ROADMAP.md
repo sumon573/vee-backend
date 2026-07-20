@@ -116,7 +116,37 @@
 
 ---
 
-### ⏳ Phase 5 — Extended User Profile & Follow System
+### ✅ Phase 5 — Identity & Authentication Infrastructure
+
+**Goal:** Production-ready Firebase Authentication infrastructure — token verification, user sync, identity orchestration, and the login endpoint.
+
+**Deliverables:**
+- `app/core/exceptions.py` — Domain exception hierarchy (`VeeError`, `AuthError`, `AuthTokenInvalidError`, `AuthTokenExpiredError`, `AuthTokenRevokedError`, `FirebaseUnavailableError`, `InactiveUserError`)
+- `app/core/config.py` — Firebase env vars: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+- `app/services/auth/firebase_init.py` — Firebase Admin SDK singleton (production-safe, private key never logged)
+- `app/services/auth/firebase.py` — `verify_firebase_token()` — full implementation; runs sync SDK call in thread-pool executor; maps all Firebase errors to domain exceptions
+- `app/services/auth/dependencies.py` — `get_current_user` FastAPI dependency — full implementation; verifies token, loads/creates user, rejects inactive accounts
+- `app/services/identity_service.py` — `IdentityService`; `login_with_firebase()`, `get_identity()`; designed for future provider extension
+- `app/repositories/user_repo.py` — `UserRepository` — all methods implemented: `get_by_id`, `get_by_firebase_uid`, `get_by_username`, `get_by_email`, `create`, `update_last_seen`, `update_profile`, `save`
+- `app/services/user_service.py` — `UserService` — all methods implemented: `sync_firebase_user()` (get-or-create), `get_profile()`, `update_last_seen()`
+- `app/api/v1/auth.py` — `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
+- `app/main.py` — global exception handlers for all `AuthError` subclasses → structured JSON 401/403/503
+- `.env.example` — Firebase credential fields documented
+- `requirements.txt` — `firebase-admin>=6.5.0`
+
+**Success Criteria:**
+- All imports resolve without error ✅
+- Firebase SDK initializes with env var credentials ✅
+- Login endpoint returns `UserRead` on first login (auto-creates user) ✅
+- Login endpoint returns `UserRead` on subsequent logins ✅
+- Inactive user is rejected with HTTP 403 ✅
+- All auth failures return structured JSON with `error` + `message` ✅
+- Private key never appears in logs ✅
+- Alembic migration unchanged ✅
+
+---
+
+### ⏳ Phase 6 — Extended User Profile & Follow System
 
 **Goal:** Build social graph primitives (follow/unfollow) and enrich user profiles.
 

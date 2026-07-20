@@ -6,16 +6,19 @@ Architecture:
     - The only layer permitted to write SQLAlchemy queries for User.
     - Returns ORM model instances (User) or None — never raises HTTP exceptions.
     - Business logic lives in UserService, not here.
-
-TODO (Phase 5): Implement all method bodies.
 """
 
+import logging
 import uuid
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Any, Optional
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 class UserRepository:
@@ -33,6 +36,10 @@ class UserRepository:
         """
         self._session = session
 
+    # ------------------------------------------------------------------
+    # Read operations
+    # ------------------------------------------------------------------
+
     async def get_by_id(self, user_id: uuid.UUID) -> Optional[User]:
         """
         Fetch a user by primary key.
@@ -42,10 +49,8 @@ class UserRepository:
 
         Returns:
             User instance or None if not found.
-
-        TODO (Phase 5): Implement with session.get(User, user_id).
         """
-        raise NotImplementedError
+        return await self._session.get(User, user_id)
 
     async def get_by_firebase_uid(self, firebase_uid: str) -> Optional[User]:
         """
@@ -56,10 +61,10 @@ class UserRepository:
 
         Returns:
             User instance or None if not found.
-
-        TODO (Phase 5): Implement with select(User).where(...).
         """
-        raise NotImplementedError
+        stmt = select(User).where(User.firebase_uid == firebase_uid)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_username(self, username: str) -> Optional[User]:
         """
@@ -70,10 +75,10 @@ class UserRepository:
 
         Returns:
             User instance or None if not found.
-
-        TODO (Phase 5): Implement with select(User).where(...).
         """
-        raise NotImplementedError
+        stmt = select(User).where(User.username == username)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_email(self, email: str) -> Optional[User]:
         """
@@ -84,10 +89,14 @@ class UserRepository:
 
         Returns:
             User instance or None if not found.
-
-        TODO (Phase 5): Implement with select(User).where(...).
         """
-        raise NotImplementedError
+        stmt = select(User).where(User.email == email)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    # ------------------------------------------------------------------
+    # Write operations
+    # ------------------------------------------------------------------
 
     async def create(self, user: User) -> User:
         """
@@ -97,22 +106,61 @@ class UserRepository:
             user: An unsaved User ORM instance.
 
         Returns:
-            The saved User instance (with id and timestamps populated).
-
-        TODO (Phase 5): Implement with session.add(user) + flush.
+            The saved User instance with server-generated fields populated
+            (id, created_at, updated_at).
         """
-        raise NotImplementedError
+        self._session.add(user)
+        await self._session.flush()
+        await self._session.refresh(user)
+        logger.info(
+            "user_repo.created user_id=%s firebase_uid=%s",
+            str(user.id),
+            user.firebase_uid,
+        )
+        return user
+
+    async def update_last_seen(self, user: User) -> None:
+        """
+        Stamp the user's last_seen_at to the current UTC time.
+
+        Args:
+            user: An active (session-tracked) User ORM instance.
+        """
+        user.last_seen_at = datetime.now(timezone.utc)
+        await self._session.flush()
+
+    async def update_profile(self, user: User, data: dict[str, Any]) -> User:
+        """
+        Apply a dictionary of field updates to an existing User.
+
+        Only updates fields present in `data`; ignores unknown keys.
+
+        Args:
+            user: An active (session-tracked) User ORM instance.
+            data: Mapping of column name → new value.
+
+        Returns:
+            The updated User instance.
+        """
+        allowed = {
+            "display_name", "avatar_url", "bio",
+            "gender", "birth_date", "username",
+        }
+        for field, value in data.items():
+            if field in allowed:
+                setattr(user, field, value)
+        await self._session.flush()
+        return user
 
     async def save(self, user: User) -> User:
         """
-        Persist changes to an existing User record.
+        Flush pending changes to an existing tracked User to the DB.
 
         Args:
-            user: A modified User ORM instance already tracked by the session.
+            user: A modified User ORM instance already in the session.
 
         Returns:
-            The saved User instance.
-
-        TODO (Phase 5): Implement with session.flush().
+            The flushed User instance.
         """
-        raise NotImplementedError
+        await self._session.flush()
+        return user

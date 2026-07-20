@@ -1,62 +1,101 @@
 """
-Firebase ID token verification.
+Firebase ID token verification — production implementation.
 
 Architecture:
-    This module is the single point of contact with Firebase Authentication.
-    It decodes and validates a raw Firebase ID token string and returns a
-    structured `FirebaseTokenPayload` containing the verified claims.
+    - Single entry point for all Firebase token verification.
+    - Runs the synchronous firebase-admin SDK call in a thread-pool
+      executor so it does not block the asyncio event loop.
+    - Maps every firebase-admin error type to a Vee domain exception
+      so callers never need to import firebase_admin directly.
 
-    Route handlers and other services must never call Firebase directly —
-    they receive an already-verified `AuthenticatedUser` via the
-    `get_current_user` FastAPI dependency (see dependencies.py).
-
-TODO (Phase 5 — Firebase Integration):
-    1. Add `firebase-admin>=6.0` to requirements.txt
-    2. Initialize the SDK once at app startup:
-
-        import firebase_admin
-        from firebase_admin import credentials, auth as firebase_auth
-
-        _cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_PATH)
-        firebase_admin.initialize_app(_cred)
-
-    3. Replace the stub below with the real implementation:
-
-        decoded = firebase_auth.verify_id_token(token)
-        return FirebaseTokenPayload(
-            uid=decoded["uid"],
-            email=decoded.get("email"),
-            ...
-        )
-
-    4. Map Firebase error types to domain exceptions:
-        firebase_admin.exceptions.InvalidArgumentError → 401
-        firebase_admin.auth.ExpiredIdTokenError        → 401
-        firebase_admin.auth.RevokedIdTokenError        → 401
+Security:
+    - Raw token strings are NEVER logged — only masked prefixes.
+    - Firebase UID is safe to log (not a secret).
 """
 
+import asyncio
+import logging
+from functools import partial
+
+from firebase_admin import auth as firebase_auth
+from firebase_admin.exceptions import FirebaseError
+
+from app.core.exceptions import (
+    AuthTokenExpiredError,
+    AuthTokenInvalidError,
+    AuthTokenRevokedError,
+    FirebaseUnavailableError,
+)
 from app.schemas.auth import FirebaseTokenPayload
+from app.services.auth.firebase_init import get_firebase_app
+
+logger = logging.getLogger(__name__)
 
 
 async def verify_firebase_token(token: str) -> FirebaseTokenPayload:
     """
     Verify a raw Firebase ID token and return its decoded claims.
 
+    Runs firebase_admin.auth.verify_id_token in a thread-pool executor
+    to avoid blocking the async event loop.
+
     Args:
-        token: The raw Bearer token string from the Authorization header.
+        token: Raw Bearer token string from the Authorization header.
 
     Returns:
-        FirebaseTokenPayload with verified claims.
+        FirebaseTokenPayload with verified, trusted claims.
 
     Raises:
-        TODO (Phase 5): Domain-specific auth exceptions mapped from
-        firebase-admin error types.
-
-    Note:
-        This is a stub. Real verification is implemented in Phase 5.
+        AuthTokenExpiredError: Token has passed its expiry.
+        AuthTokenRevokedError: Token has been explicitly revoked.
+        AuthTokenInvalidError: Token is malformed or signature is invalid.
+        FirebaseUnavailableError: Firebase SDK is not initialized or unreachable.
     """
-    # TODO (Phase 5): Replace with firebase_admin.auth.verify_id_token(token)
-    raise NotImplementedError(
-        "Firebase token verification is not yet implemented. "
-        "This stub will be replaced in Phase 5."
+    # Log only a safe prefix — never the full token.
+    token_prefix = token[:8] + "..." if len(token) > 8 else "***"
+    logger.debug("firebase.verify_start token_prefix=%s", token_prefix)
+
+    app = get_firebase_app()
+
+    try:
+        loop = asyncio.get_event_loop()
+        decoded: dict = await loop.run_in_executor(
+            None,
+            partial(firebase_auth.verify_id_token, token, app=app),
+        )
+    except firebase_auth.ExpiredIdTokenError as exc:
+        logger.info("firebase.token_expired token_prefix=%s", token_prefix)
+        raise AuthTokenExpiredError() from exc
+    except firebase_auth.RevokedIdTokenError as exc:
+        logger.info("firebase.token_revoked token_prefix=%s", token_prefix)
+        raise AuthTokenRevokedError() from exc
+    except (
+        firebase_auth.InvalidIdTokenError,
+        firebase_auth.UserDisabledError,
+        ValueError,
+    ) as exc:
+        logger.info(
+            "firebase.token_invalid token_prefix=%s error=%s",
+            token_prefix,
+            type(exc).__name__,
+        )
+        raise AuthTokenInvalidError() from exc
+    except FirebaseError as exc:
+        logger.error(
+            "firebase.sdk_error token_prefix=%s error=%s",
+            token_prefix,
+            type(exc).__name__,
+        )
+        raise FirebaseUnavailableError() from exc
+
+    payload = FirebaseTokenPayload(
+        uid=decoded["uid"],
+        email=decoded.get("email"),
+        phone_number=decoded.get("phone_number"),
+        name=decoded.get("name"),
+        picture=decoded.get("picture"),
+        email_verified=decoded.get("email_verified", False),
     )
+
+    logger.debug("firebase.verify_success firebase_uid=%s", payload.uid)
+    return payload

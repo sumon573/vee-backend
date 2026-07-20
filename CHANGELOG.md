@@ -11,6 +11,43 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.0] — 2026-07-20
+
+### Added — Phase 5: Identity & Authentication Infrastructure
+
+#### Exceptions
+- `app/core/exceptions.py` — domain exception hierarchy: `VeeError` (root), `AuthError` (base auth), `AuthTokenInvalidError`, `AuthTokenExpiredError`, `AuthTokenRevokedError`, `FirebaseUnavailableError`, `InactiveUserError`; every exception carries a machine-readable `code` and human-readable `message`
+
+#### Configuration
+- `app/core/config.py` — added `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` fields; private key `\\n` normalization documented
+
+#### Firebase Admin SDK
+- `app/services/auth/firebase_init.py` — production-safe singleton; credentials from env vars (never from disk); `\\n` → newline normalization for PEM keys; private key never logged; `get_app()` reuse guard prevents double-initialization
+- `app/services/auth/firebase.py` — `verify_firebase_token()` fully implemented; runs `verify_id_token` in thread-pool executor (non-blocking); maps `ExpiredIdTokenError`, `RevokedIdTokenError`, `InvalidIdTokenError`, `FirebaseError` → domain exceptions; only safe token prefix logged
+
+#### Authentication Dependency
+- `app/services/auth/dependencies.py` — `get_current_user()` fully implemented; uses `IdentityService.login_with_firebase()`; maps `InactiveUserError` → HTTP 403, `AuthError` → HTTP 401 with `WWW-Authenticate: Bearer`
+
+#### Identity Service (new)
+- `app/services/identity_service.py` — `IdentityService`; `login_with_firebase()` (verify → sync → guard inactive → update presence → return User); `get_identity()` (lightweight token introspection); designed for future provider extension
+
+#### Repository
+- `app/repositories/user_repo.py` — all methods implemented: `get_by_id` (session.get), `get_by_firebase_uid` (select+where), `get_by_username`, `get_by_email`, `create` (add+flush+refresh), `update_last_seen` (UTC stamp+flush), `update_profile` (allowlist-guarded setattr+flush), `save` (flush)
+
+#### Service
+- `app/services/user_service.py` — all methods implemented: `sync_firebase_user()` (get-or-create; auto-generates username `vee_<uid[:16]>`; uses Firebase claims for display_name/email/phone/avatar), `get_profile()`, `get_by_id()`, `update_last_seen()` (non-fatal; swallows errors with warning log)
+
+#### API Endpoints
+- `POST /api/v1/auth/login` — verifies Firebase ID token (Bearer), syncs user, updates presence, returns `UserRead`
+- `GET /api/v1/auth/me` — protected; returns current user profile via `get_current_user` dependency
+
+#### Application Wiring
+- `app/main.py` — global exception handlers: `InactiveUserError` → 403, `FirebaseUnavailableError` → 503, `AuthTokenExpiredError` → 401, `AuthTokenRevokedError` → 401, `AuthError` (catch-all) → 401; all auth error responses follow `{"error": "<code>", "message": "<text>"}` shape
+- `.env.example` — Firebase credential fields with setup instructions
+- `requirements.txt` — `firebase-admin>=6.5.0`
+
+---
+
 ## [0.2.0] — 2026-07-20
 
 ### Added — Phase 4: Core Domain Models & Authentication Foundation
@@ -100,6 +137,7 @@ When cutting a new release:
 
 ---
 
-[Unreleased]: https://github.com/sumon573/vee-backend/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sumon573/vee-backend/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sumon573/vee-backend/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sumon573/vee-backend/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sumon573/vee-backend/releases/tag/v0.1.0
