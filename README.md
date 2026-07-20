@@ -6,6 +6,18 @@ Built with **Python 3.12** and **FastAPI**.
 
 ---
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Full architecture reference — layers, request flow, scaling |
+| [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) | Master phase roadmap — completed, current, and pending phases |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branch strategy, commit convention, coding standards, PR rules |
+| [CHANGELOG.md](CHANGELOG.md) | Version history in Keep a Changelog format |
+| [AI_AGENT.md](AI_AGENT.md) | Instruction manual for AI agents — read this first |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -25,23 +37,24 @@ Built with **Python 3.12** and **FastAPI**.
 ```
 app/
 ├── api/            # Route handlers and API versioning
-├── core/           # Configuration and application settings
-│   └── config.py   # Pydantic Settings
-├── db/             # Database layer
+├── core/
+│   └── config.py   # Pydantic Settings — all env vars
+├── db/
 │   ├── base.py     # DeclarativeBase for all ORM models
-│   ├── database.py # Async engine creation
+│   ├── database.py # Async engine with production pool config
 │   ├── session.py  # Session factory and get_db dependency
 │   └── __init__.py # Public exports
 ├── models/         # ORM models (future phases)
 ├── schemas/        # Pydantic request/response schemas
 ├── services/       # Business logic layer
 ├── repositories/   # Data access layer
-├── middleware/     # Custom middleware
-├── utils/          # Shared utility functions
+├── middleware/     # Custom ASGI middleware
+├── utils/
+│   └── db_url.py   # PostgreSQL URL normalizer for asyncpg
 └── main.py         # FastAPI application entry point
 
 alembic/            # Database migration scripts
-alembic.ini         # Alembic configuration
+alembic.ini         # Alembic config (DATABASE_URL from env)
 ```
 
 ---
@@ -68,7 +81,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Run the server
+### 4. Apply database migrations
+
+```bash
+alembic upgrade head
+```
+
+### 5. Run the server
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -86,16 +105,16 @@ Set the following in your `.env` file:
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/vee
 ```
 
-> The `postgresql+asyncpg://` scheme is required for async SQLAlchemy 2.x.
+> Plain `postgresql://` and `postgres://` schemes are also accepted — the application normalises them automatically.
 
-### Run migrations
+### Migration commands
 
 ```bash
-# Create a new migration (auto-detect model changes)
-alembic revision --autogenerate -m "description"
-
 # Apply all pending migrations
 alembic upgrade head
+
+# Create a new migration (auto-detect model changes)
+alembic revision --autogenerate -m "description"
 
 # Roll back one migration
 alembic downgrade -1
@@ -129,9 +148,21 @@ alembic history
 
 ## Roadmap
 
-- [x] Phase 1 — Backend Foundation
-- [x] Phase 2 — Database Foundation
-- [ ] Phase 3 — Authentication & User Management
-- [ ] Phase 4 — Voice Room
-- [ ] Phase 5 — Social Features
-- [ ] Phase 6 — Notifications & Wallet
+See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for the full phase-by-phase plan.
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| 1 | ✅ | Backend Foundation |
+| 2 | ✅ | Database Foundation |
+| 3 | ✅ | Documentation & Architecture Governance |
+| 4 | ⏳ | Authentication & User Management |
+| 5 | ⏳ | Extended User Profile & Follow System |
+| 6 | ⏳ | Voice Rooms (LiveKit) |
+| 7 | ⏳ | Audio Stories (MinIO) |
+| 8 | ⏳ | Chat & Messaging |
+| 9 | ⏳ | Wallet & Payments |
+| 10 | ⏳ | Notifications |
+| 11 | ⏳ | Security Hardening |
+| 12 | ⏳ | Testing |
+| 13 | ⏳ | Observability & Monitoring |
+| 14 | ⏳ | Deployment & Infrastructure |
