@@ -1,0 +1,269 @@
+
+তুমি একটি production-grade backend project-এ নতুন AI Agent হিসেবে যোগ দিচ্ছো।
+
+⚠️ এই project-এর GitHub repository-ই একমাত্র source of truth।
+কোনো conversation history, previous assumption বা cached context-এর উপর নির্ভর করবে না।
+
+========================================================
+STEP 1 — Mandatory Repository Discovery
+========================================================
+
+কোনো code লেখার আগে অবশ্যই:
+
+1. পুরো repository scan করবে।
+2. README.md পড়বে।
+3. ARCHITECTURE.md পড়বে।
+4. PROJECT_ROADMAP.md পড়বে।
+5. AI_AGENT.md সম্পূর্ণ পড়বে।
+6. CHANGELOG.md পড়বে।
+7. Folder structure বিশ্লেষণ করবে।
+8. সর্বশেষ commit পর্যন্ত implemented feature বুঝবে।
+9. Phase 1–6 completed work verify করবে।
+10. Phase 7-এর কোনো অংশ আগে implement হয়েছে কিনা repository থেকেই নির্ধারণ করবে।
+
+Analysis শেষ না করে কোনো code লিখবে না।
+
+--------------------------------------------------------
+
+Project Analysis Report দেবে:
+
+• Current Version
+• Last Commit
+• Completed Phases
+• Current Phase
+• Pending Tasks
+• Database Summary
+• Authentication Summary
+• User System Summary
+• Documentation Status
+
+এরপর Phase 7 continue করবে।
+
+========================================================
+CURRENT PHASE
+========================================================
+
+Phase 7 — Social Graph Foundation
+
+⚠️ যদি Phase 7-এর কোনো অংশ আগে implement হয়ে থাকে তাহলে duplicate করবে না।
+
+শুধুমাত্র অসম্পূর্ণ অংশ implement করবে।
+
+কোনো existing architecture পরিবর্তন করবে না।
+
+Backward compatibility বজায় রাখবে।
+
+========================================================
+TASK 1 — Repository Audit
+========================================================
+
+প্রথমে check করবে:
+
+Follow model already আছে?
+
+Migration already generate হয়েছে?
+
+Repository methods implement হয়েছে?
+
+Service methods implement হয়েছে?
+
+Endpoints already আছে?
+
+Documentation update হয়েছে?
+
+যা already complete, তা modify করবে না যদি bug না থাকে।
+
+========================================================
+TASK 2 — Complete Remaining Social Graph
+========================================================
+
+যদি Follow model অসম্পূর্ণ থাকে তাহলে complete করবে।
+
+Fields:
+
+- id
+- follower_id
+- following_id
+- created_at
+
+Rules:
+
+✓ Self follow নিষিদ্ধ
+
+✓ Duplicate follow নিষিদ্ধ
+
+✓ Proper FK
+
+✓ Unique Constraint
+
+✓ Index optimization
+
+========================================================
+TASK 3 — Repository
+========================================================
+
+যদি implement না থাকে:
+
+follow()
+
+unfollow()
+
+is_following()
+
+followers_count()
+
+following_count()
+
+list_followers()
+
+list_following()
+
+========================================================
+TASK 4 — Service
+========================================================
+
+Business rules:
+
+নিজেকে follow করা যাবে না।
+
+Inactive user follow করা যাবে না।
+
+Soft deleted user follow করা যাবে না।
+
+Duplicate follow reject করবে।
+
+========================================================
+TASK 5 — API
+========================================================
+
+যদি endpoint না থাকে implement করবে:
+
+POST /api/v1/users/{username}/follow
+
+DELETE /api/v1/users/{username}/follow
+
+GET /api/v1/users/{username}/followers
+
+GET /api/v1/users/{username}/following
+
+GET /api/v1/users/{username}/relationship
+
+========================================================
+TASK 6 — Profile Integration
+========================================================
+
+Public profile response-এ যোগ করবে:
+
+followers_count
+
+following_count
+
+is_following
+
+is_followed_by
+
+Authentication থাকলে relationship return করবে।
+
+========================================================
+TASK 7 — Performance
+========================================================
+
+N+1 query avoid করবে।
+
+Indexes review করবে।
+
+Repository optimize করবে।
+
+========================================================
+TASK 8 — Alembic
+========================================================
+
+Migration generate করবে যদি প্রয়োজন হয়।
+
+যদি migration already generated থাকে তাহলে নতুন duplicate migration তৈরি করবে না।
+
+Migration apply করবে না।
+
+========================================================
+TASK 9 — Documentation
+========================================================
+
+README.md
+
+PROJECT_ROADMAP.md
+
+CHANGELOG.md
+
+AI_AGENT.md
+
+শুধুমাত্র প্রয়োজন হলে update করবে।
+
+Duplicate documentation লিখবে না।
+
+========================================================
+STRICT RULES
+========================================================
+
+❌ Existing architecture পরিবর্তন করবে না
+
+❌ Unnecessary refactor করবে না
+
+❌ Duplicate code লিখবে না
+
+❌ Chat implement করবে না
+
+❌ Voice Room implement করবে না
+
+❌ Story implement করবে না
+
+❌ Wallet implement করবে না
+
+❌ Notification implement করবে না
+
+❌ Recommendation implement করবে না
+
+========================================================
+FINAL VALIDATION
+========================================================
+
+শেষে verify করবে:
+
+✅ Follow works
+
+✅ Unfollow works
+
+✅ Self follow blocked
+
+✅ Duplicate follow blocked
+
+✅ Counts correct
+
+✅ Relationship endpoint works
+
+✅ Existing Authentication unaffected
+
+✅ Existing User API unaffected
+
+✅ Import error নেই
+
+========================================================
+GIT
+========================================================
+
+শেষে:
+
+১. Summary
+
+২. কী কী file modify হয়েছে
+
+৩. Validation Report
+
+৪. Commit
+
+৫. Push
+
+৬. Commit hash
+
+৭. Migration filename (যদি নতুন তৈরি হয়)
+
+৮. Phase 7 Completion Report
