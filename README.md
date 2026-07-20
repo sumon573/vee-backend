@@ -14,6 +14,9 @@ Built with **Python 3.12** and **FastAPI**.
 | Framework | FastAPI |
 | Server | Uvicorn |
 | Config | Pydantic Settings |
+| Database | PostgreSQL + SQLAlchemy 2.x (async) |
+| Migrations | Alembic |
+| Driver | asyncpg |
 
 ---
 
@@ -23,14 +26,22 @@ Built with **Python 3.12** and **FastAPI**.
 app/
 ├── api/            # Route handlers and API versioning
 ├── core/           # Configuration and application settings
-├── db/             # Database connection and session management
-├── models/         # ORM models
+│   └── config.py   # Pydantic Settings
+├── db/             # Database layer
+│   ├── base.py     # DeclarativeBase for all ORM models
+│   ├── database.py # Async engine creation
+│   ├── session.py  # Session factory and get_db dependency
+│   └── __init__.py # Public exports
+├── models/         # ORM models (future phases)
 ├── schemas/        # Pydantic request/response schemas
 ├── services/       # Business logic layer
 ├── repositories/   # Data access layer
 ├── middleware/     # Custom middleware
 ├── utils/          # Shared utility functions
 └── main.py         # FastAPI application entry point
+
+alembic/            # Database migration scripts
+alembic.ini         # Alembic configuration
 ```
 
 ---
@@ -41,6 +52,7 @@ app/
 
 ```bash
 cp .env.example .env
+# Edit .env and set your DATABASE_URL
 ```
 
 ### 2. Create virtual environment
@@ -64,6 +76,46 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
+## Database Setup
+
+### Environment variable
+
+Set the following in your `.env` file:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/vee
+```
+
+> The `postgresql+asyncpg://` scheme is required for async SQLAlchemy 2.x.
+
+### Run migrations
+
+```bash
+# Create a new migration (auto-detect model changes)
+alembic revision --autogenerate -m "description"
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Roll back one migration
+alembic downgrade -1
+
+# Check current migration state
+alembic current
+
+# View migration history
+alembic history
+```
+
+### Adding new models
+
+1. Create your model in `app/models/` inheriting from `Base`
+2. Import it in `alembic/env.py` under the model imports section
+3. Run `alembic revision --autogenerate -m "add <model>"`
+4. Apply with `alembic upgrade head`
+
+---
+
 ## API Endpoints
 
 | Method | Path | Description |
@@ -77,8 +129,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Roadmap
 
-- [ ] Phase 1 — Backend Foundation ✅
-- [ ] Phase 2 — Authentication & User Management
-- [ ] Phase 3 — Voice Room
-- [ ] Phase 4 — Social Features
-- [ ] Phase 5 — Notifications & Wallet
+- [x] Phase 1 — Backend Foundation
+- [x] Phase 2 — Database Foundation
+- [ ] Phase 3 — Authentication & User Management
+- [ ] Phase 4 — Voice Room
+- [ ] Phase 5 — Social Features
+- [ ] Phase 6 — Notifications & Wallet

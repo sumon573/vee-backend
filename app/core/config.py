@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     PORT: int = 8000
     ALLOWED_ORIGINS: List[str] = ["*"]
 
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/vee"
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 
