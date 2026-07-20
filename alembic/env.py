@@ -23,11 +23,11 @@ if config.config_file_name is not None:
 # Import Base and all models so Alembic can detect schema changes.
 # Add model imports here as new models are created in future phases:
 #
-#   from app.models.user import User       # Phase 3
-#   from app.models.room import Room       # Phase 4
+#   from app.models.room import Room       # Phase 6
 #
 # ---------------------------------------------------------------------------
 from app.db.base import Base  # noqa: E402
+from app.models.user import User  # noqa: F401 — Phase 4: registers users table
 from app.utils.db_url import normalize_database_url  # noqa: E402
 
 target_metadata = Base.metadata

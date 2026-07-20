@@ -15,6 +15,7 @@
 | **Database** | PostgreSQL (asyncpg driver) |
 | **ORM** | SQLAlchemy 2.x (async) |
 | **Migrations** | Alembic |
+| **Auth** | Firebase Authentication (foundation in place; full implementation Phase 5) |
 | **Entry point** | `uvicorn app.main:app --reload` |
 | **Docs** | `GET /docs` (Swagger UI) |
 
@@ -24,25 +25,43 @@
 
 ```
 app/
-├── api/            ← HTTP route handlers (APIRouter) — currently empty
+├── api/
+│   └── v1/
+│       ├── __init__.py   ← combined v1 router — mounted at /api/v1
+│       └── auth.py       ← /api/v1/auth (structure only; endpoints in Phase 5)
 ├── core/
-│   └── config.py   ← All env vars via pydantic_settings.BaseSettings
+│   └── config.py         ← All env vars via pydantic_settings.BaseSettings
 ├── db/
-│   ├── base.py     ← DeclarativeBase — ALL models inherit from here
-│   ├── database.py ← Async SQLAlchemy engine (pool_size=10, max_overflow=20)
-│   ├── session.py  ← AsyncSessionLocal + get_db FastAPI dependency
-│   └── __init__.py ← Exports: Base, engine, AsyncSessionLocal, get_db
-├── models/         ← ORM models — currently empty (placeholder __init__.py)
-├── schemas/        ← Pydantic DTOs — currently empty
-├── services/       ← Business logic — currently empty
-├── repositories/   ← Data access — currently empty
-├── middleware/     ← ASGI middleware — currently empty
+│   ├── base.py           ← DeclarativeBase — ALL models inherit from here
+│   ├── database.py       ← Async SQLAlchemy engine (pool_size=10, max_overflow=20)
+│   ├── mixins.py         ← UUIDMixin (UUID v4 PK), TimestampMixin (created_at/updated_at)
+│   ├── session.py        ← AsyncSessionLocal + get_db FastAPI dependency
+│   └── __init__.py       ← Exports: Base, engine, AsyncSessionLocal, get_db
+├── models/
+│   ├── enums.py          ← Gender enum (str-based)
+│   └── user.py           ← User ORM model (14 fields, UUID PK, firebase_uid, etc.)
+├── schemas/
+│   ├── auth.py           ← FirebaseTokenPayload, AuthenticatedUser
+│   └── user.py           ← UserBase, UserRead, UserCreate, UserUpdate
+├── services/
+│   ├── auth/
+│   │   ├── __init__.py   ← exports verify_firebase_token, get_current_user
+│   │   ├── firebase.py   ← verify_firebase_token() stub (TODO Phase 5)
+│   │   └── dependencies.py ← get_current_user FastAPI dependency stub (TODO Phase 5)
+│   └── user_service.py   ← UserService skeleton (TODO Phase 5)
+├── repositories/
+│   └── user_repo.py      ← UserRepository skeleton (TODO Phase 5)
+├── middleware/            ← ASGI middleware — currently empty
 ├── utils/
-│   └── db_url.py   ← normalize_database_url() — strips sslmode, fixes scheme
-└── main.py         ← FastAPI app, CORS middleware, / and /health endpoints
+│   └── db_url.py         ← normalize_database_url() — strips sslmode, fixes scheme
+└── main.py               ← FastAPI app, CORS, /, /health, mounts /api/v1
 
-alembic/            ← Migration scripts
-alembic.ini         ← Config (DATABASE_URL from env, not hardcoded)
+alembic/
+├── versions/
+│   └── cfeccaac3dc7_phase_4_add_users_table.py  ← users table + gender_enum
+├── env.py                ← Imports User model; async migration runner
+└── script.py.mako
+alembic.ini               ← Config (DATABASE_URL from env, not hardcoded)
 requirements.txt
 .env.example
 ```
@@ -51,14 +70,10 @@ requirements.txt
 
 ## Current Phase
 
-**Phase 3 — Project Documentation & Architecture Governance** (in progress / just completed)
-
-Previous phases:
-- ✅ Phase 1 — Backend Foundation
-- ✅ Phase 2 — Database Foundation
+**Phase 4 — Core Domain Models & Authentication Foundation** ✅ Complete
 
 Next phase:
-- ⏳ Phase 4 — Authentication & User Management
+- ⏳ Phase 5 — Firebase Auth Implementation & Extended User Profile
 
 See `PROJECT_ROADMAP.md` for the complete phase list.
 
@@ -89,23 +104,38 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 - `AI_AGENT.md` — this file
 - `README.md` updated with links
 
+### Phase 4 — Core Domain Models & Authentication Foundation
+- `app/models/enums.py` — `Gender` string enum
+- `app/db/mixins.py` — `UUIDMixin` (UUID v4 PK) and `TimestampMixin` (`created_at`/`updated_at`)
+- `app/models/user.py` — `User` model with 14 columns; composite index on `(is_active, created_at)`
+- `app/schemas/user.py` — `UserBase`, `UserRead`, `UserCreate`, `UserUpdate`
+- `app/schemas/auth.py` — `FirebaseTokenPayload` (frozen, maps Firebase JWT claims), `AuthenticatedUser`
+- `app/services/auth/` — `verify_firebase_token()` and `get_current_user` stubs with full Phase 5 TODO guidance
+- `app/repositories/user_repo.py` — `UserRepository` with typed method signatures (not yet implemented)
+- `app/services/user_service.py` — `UserService` with typed method signatures (not yet implemented)
+- `app/api/v1/__init__.py` — combined v1 router
+- `app/api/v1/auth.py` — auth router at `/api/v1/auth` (structure only)
+- `app/main.py` — v1 router mounted at `/api/v1`
+- `alembic/env.py` — `User` imported for Alembic detection
+- Migration `cfeccaac3dc7_phase_4_add_users_table.py` — creates `gender_enum` + `users` table (generated; **not yet applied**)
+
 ---
 
 ## Pending Work
 
 | Phase | Description |
 |-------|-------------|
-| 4 | Authentication & User Management (JWT, register, login) |
-| 5 | Extended User Profile & Follow System |
-| 6 | Voice Rooms (LiveKit integration) |
-| 7 | Audio Stories (MinIO / S3 storage) |
-| 8 | Chat & Direct Messaging (WebSocket + Redis) |
-| 9 | Wallet & Payments |
-| 10 | Notifications (FCM + Celery) |
-| 11 | Security Hardening |
-| 12 | Testing (pytest, 80%+ coverage) |
-| 13 | Observability & Monitoring (structlog, Prometheus, Sentry) |
-| 14 | Deployment & Infrastructure (Docker, CI/CD) |
+| 5 | Firebase Auth Implementation — implement `verify_firebase_token()`, `get_current_user`, `UserRepository`, `UserService`, login endpoint; apply migration |
+| 6 | Extended User Profile & Follow System |
+| 7 | Voice Rooms (LiveKit integration) |
+| 8 | Audio Stories (MinIO / S3 storage) |
+| 9 | Chat & Direct Messaging (WebSocket + Redis) |
+| 10 | Wallet & Payments |
+| 11 | Notifications (FCM + Celery) |
+| 12 | Security Hardening |
+| 13 | Testing (pytest, 80%+ coverage) |
+| 14 | Observability & Monitoring (structlog, Prometheus, Sentry) |
+| 15 | Deployment & Infrastructure (Docker, CI/CD) |
 
 ---
 
@@ -119,6 +149,7 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 6. **No bare `except:`** — always name the exception type
 7. **No hardcoded secrets** — all config through `app/core/config.py` → env var
 8. **`expire_on_commit=False`** on session — already configured; do not change
+9. **SQLAlchemy 2.x typed mapping** — always use `Mapped[T]` + `mapped_column()`; never use the old `Column()` style
 
 ---
 
@@ -144,18 +175,23 @@ api → services → repositories → db/models
 | `schemas/` | Request/response DTOs | ORM imports, DB sessions |
 | `utils/` | Pure stateless helpers | DB access, side effects |
 
+### Mixin Usage
+All new models must use `UUIDMixin` and `TimestampMixin` from `app/db/mixins.py`.
+MRO order: `class MyModel(UUIDMixin, TimestampMixin, Base):`
+
 ### Adding a New Model
-1. Create `app/models/<name>.py` — inherit from `Base`
-2. Add import in `alembic/env.py` under the model imports comment block
-3. Run `alembic revision --autogenerate -m "add <name> table"`
-4. Apply: `alembic upgrade head`
+1. Create `app/models/<name>.py` — inherit from `UUIDMixin`, `TimestampMixin`, `Base`
+2. Add enum to `app/models/enums.py` if needed
+3. Add import in `alembic/env.py` under the model imports comment block
+4. Run `alembic revision --autogenerate -m "add <name> table"`
+5. Apply: `alembic upgrade head`
 
 ### Adding a New Endpoint
 1. Create `app/api/v1/<resource>.py` with `APIRouter`
 2. Create `app/schemas/<resource>.py` for request/response schemas
 3. Create `app/services/<resource>_service.py` for business logic
 4. Create `app/repositories/<resource>_repo.py` for DB queries
-5. Register the router in `app/main.py` (or an `app/api/v1/__init__.py` router)
+5. Register the router in `app/api/v1/__init__.py` — **do not touch `app/main.py`**
 
 ---
 
@@ -177,6 +213,8 @@ api → services → repositories → db/models
 | Commit to `main` directly | Protected branch |
 | Skip updating `CHANGELOG.md` | Version history becomes stale |
 | Skip importing new models in `alembic/env.py` | Migrations won't detect the new table |
+| Use old-style `Column()` in models | Use `Mapped[T]` + `mapped_column()` only |
+| Register new routers in `app/main.py` | Register in `app/api/v1/__init__.py` instead |
 
 ---
 
@@ -216,7 +254,10 @@ python3.12 -c "from app.main import app; print('OK')"
 # Check Alembic config + DB connectivity
 python3.12 -m alembic check
 
-# Run migrations
+# Generate migration (review before applying)
+python3.12 -m alembic revision --autogenerate -m "description"
+
+# Apply migrations
 python3.12 -m alembic upgrade head
 ```
 
@@ -251,6 +292,12 @@ A phase is **Done** when:
 | `ALLOWED_ORIGINS` | No | `["*"]` | CORS allowed origins (lock down in production) |
 | `DATABASE_URL` | **Yes** | — | PostgreSQL connection string |
 
+**Planned (Phase 5):**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | Yes | Path to Firebase service account JSON |
+
 **DATABASE_URL format accepted:**
 - `postgresql+asyncpg://user:pass@host:port/db` (canonical)
 - `postgresql://user:pass@host:port/db` (auto-normalized)
@@ -269,3 +316,8 @@ A phase is **Done** when:
 | `sslmode` stripped from URL | asyncpg rejects psycopg2-style SSL params; use `connect_args={"ssl": ...}` if SSL control is needed |
 | Alembic reads `DATABASE_URL` from env | Keeps credentials out of `alembic.ini` which is version-controlled |
 | `pool_pre_ping=True` | Cloud PostgreSQL connections drop silently; pre-ping detects and replaces stale ones |
+| Firebase over JWT/bcrypt | Vee is a mobile-first social platform; Firebase handles phone/Google/Apple sign-in natively |
+| UUID v4 primary keys | Avoids sequential ID enumeration; safe to expose in URLs |
+| `UUIDMixin` + `TimestampMixin` | Prevents duplicated columns across models; enforces consistency |
+| New routers registered in `app/api/v1/__init__.py` | Keeps `app/main.py` stable — only one mount point regardless of how many resource routers exist |
+| Migration generated but not applied in Phase 4 | Phase 5 will apply the migration as part of going live with the auth endpoints |

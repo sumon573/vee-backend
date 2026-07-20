@@ -9,12 +9,55 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### In Progress
-- Phase 3 — Project Documentation & Architecture Governance
+---
+
+## [0.2.0] — 2026-07-20
+
+### Added — Phase 4: Core Domain Models & Authentication Foundation
+
+#### Models
+- `app/models/enums.py` — `Gender` string enum (`male`, `female`, `other`, `prefer_not_to_say`)
+- `app/models/user.py` — `User` ORM model with 14 fields: `id` (UUID v4), `firebase_uid`, `username`, `display_name`, `email`, `phone`, `avatar_url`, `bio`, `gender`, `birth_date`, `is_verified`, `is_active`, `created_at`, `updated_at`, `last_seen_at`; composite index on `(is_active, created_at)`
+
+#### Database Mixins
+- `app/db/mixins.py` — `UUIDMixin` (UUID v4 primary key) and `TimestampMixin` (`created_at` / `updated_at` with `server_default=func.now()`)
+
+#### Schemas (Pydantic v2)
+- `app/schemas/user.py` — `UserBase`, `UserRead` (with `from_attributes=True`), `UserCreate`, `UserUpdate`
+- `app/schemas/auth.py` — `FirebaseTokenPayload` (frozen, maps Firebase JWT claims), `AuthenticatedUser` (lightweight DTO injected into route handlers)
+
+#### Authentication Foundation
+- `app/services/auth/__init__.py` — public surface: `verify_firebase_token`, `get_current_user`
+- `app/services/auth/firebase.py` — `verify_firebase_token()` stub with full TODO for Phase 5 firebase-admin integration
+- `app/services/auth/dependencies.py` — `get_current_user` FastAPI dependency stub using `HTTPBearer`; raises `HTTP 501` until Phase 5 implements real verification
+
+#### Service & Repository Skeletons
+- `app/repositories/user_repo.py` — `UserRepository` with method signatures: `get_by_id`, `get_by_firebase_uid`, `get_by_username`, `get_by_email`, `create`, `save`
+- `app/services/user_service.py` — `UserService` with method signatures: `get_or_create_from_firebase`, `get_by_id`, `update_last_seen`
+
+#### API Structure
+- `app/api/v1/__init__.py` — combined v1 `APIRouter`; new resource routers registered here without touching `app/main.py`
+- `app/api/v1/auth.py` — `APIRouter(prefix="/auth", tags=["auth"])` with structured TODO for Phase 5 endpoints
+
+#### Application Wiring
+- `app/main.py` — v1 router mounted at `/api/v1`
+- `alembic/env.py` — `User` model imported so Alembic detects `users` table
+
+#### Migrations
+- `alembic/versions/<timestamp>_phase_4_add_users_table.py` — auto-generated migration creating `gender_enum` PostgreSQL type and `users` table with all columns and indexes
+
+### Added — Phase 3: Documentation & Architecture Governance
+
+- `ARCHITECTURE.md` — full architecture reference (layers, request flow, scaling, DB config)
+- `PROJECT_ROADMAP.md` — master phase roadmap (14 phases, goal/deliverables/success criteria per phase)
+- `CONTRIBUTING.md` — branch strategy, Conventional Commits, coding standards, PR rules, review checklist
+- `CHANGELOG.md` — this file; Keep a Changelog format
+- `AI_AGENT.md` — instruction manual for future AI agents
+- `README.md` updated with documentation links table and roadmap status table
 
 ---
 
-## [0.1.0] — 2025-07-20
+## [0.1.0] — 2026-07-20
 
 ### Added — Phase 2: Database Foundation
 
@@ -57,5 +100,6 @@ When cutting a new release:
 
 ---
 
-[Unreleased]: https://github.com/sumon573/vee-backend/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sumon573/vee-backend/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sumon573/vee-backend/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sumon573/vee-backend/releases/tag/v0.1.0

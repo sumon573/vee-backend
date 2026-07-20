@@ -63,7 +63,7 @@
 
 ---
 
-### 🔄 Phase 3 — Project Documentation & Architecture Governance
+### ✅ Phase 3 — Project Documentation & Architecture Governance
 
 **Goal:** Make the repository self-documenting so any AI agent or developer can understand and extend it without prior context.
 
@@ -87,28 +87,32 @@
 
 ---
 
-### ⏳ Phase 4 — Authentication & User Management
+### ✅ Phase 4 — Core Domain Models & Authentication Foundation
 
-**Goal:** Implement JWT-based authentication and the core User entity.
+**Goal:** Establish the core User domain model and a scalable authentication foundation using Firebase Authentication.
 
 **Deliverables:**
-- `app/models/user.py` — User ORM model (id, email, username, hashed_password, is_active, created_at)
-- `app/schemas/user.py` — `UserCreate`, `UserRead`, `UserUpdate`
-- `app/schemas/auth.py` — `TokenResponse`, `LoginRequest`
-- `app/repositories/user_repo.py` — CRUD operations
-- `app/services/auth_service.py` — register, login, token refresh logic
-- `app/services/user_service.py` — profile management
-- `app/api/v1/auth.py` — `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`
-- `app/api/v1/users.py` — `GET /users/me`, `PATCH /users/me`
-- JWT access + refresh token implementation (python-jose or PyJWT)
-- Password hashing (passlib + bcrypt)
-- Alembic migration for users table
-- `GET /auth/logout` (token invalidation via Redis blacklist — stub for now)
+- `app/models/enums.py` — `Gender` string enum
+- `app/db/mixins.py` — `UUIDMixin` (UUID v4 primary key), `TimestampMixin` (`created_at`, `updated_at`)
+- `app/models/user.py` — `User` ORM model with 14 fields (UUID PK, firebase_uid, username, display_name, email, phone, avatar_url, bio, gender, birth_date, is_verified, is_active, created_at, updated_at, last_seen_at)
+- `app/schemas/user.py` — `UserBase`, `UserRead`, `UserCreate`, `UserUpdate`
+- `app/schemas/auth.py` — `FirebaseTokenPayload`, `AuthenticatedUser`
+- `app/services/auth/firebase.py` — `verify_firebase_token()` stub (Phase 5 TODO)
+- `app/services/auth/dependencies.py` — `get_current_user` FastAPI dependency stub
+- `app/repositories/user_repo.py` — `UserRepository` skeleton (method signatures, Phase 5 TODO)
+- `app/services/user_service.py` — `UserService` skeleton (method signatures, Phase 5 TODO)
+- `app/api/v1/__init__.py` — combined v1 router
+- `app/api/v1/auth.py` — auth router structure at `/api/v1/auth` (Phase 5 TODO)
+- `app/main.py` — v1 router mounted at `/api/v1`
+- `alembic/env.py` — `User` model imported for migration detection
+- Alembic migration — creates `gender_enum` PostgreSQL type and `users` table
 
 **Success Criteria:**
-- Register → Login → receive JWT → access protected route works end-to-end
-- Passwords are hashed, never stored in plaintext
-- Expired tokens are rejected
+- All imports resolve without error ✅
+- Alembic detects `users` table and generates a clean migration ✅
+- User model uses SQLAlchemy 2.x typed mapping (`Mapped`, `mapped_column`) ✅
+- No existing code modified beyond planned wiring ✅
+- Firebase business logic deferred to Phase 5 ✅
 
 ---
 
