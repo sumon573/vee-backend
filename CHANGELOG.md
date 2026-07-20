@@ -11,6 +11,45 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.5.0] — 2026-07-20
+
+### Added — Phase 7: Social Graph Foundation
+
+#### Model
+- `app/models/follow.py` — `Follow` ORM model; fields: `id` (UUID v4), `follower_id` (FK → users.id CASCADE), `following_id` (FK → users.id CASCADE), `created_at`; UNIQUE constraint `uq_follows_follower_following`; CHECK constraint `ck_follows_no_self_follow`; indexes `ix_follows_follower_id`, `ix_follows_following_id`, `ix_follows_created_at`
+
+#### Schemas
+- `app/schemas/follow.py` — `FollowRead`, `FollowUserRead`, `FollowListResponse`, `RelationshipRead`
+- `app/schemas/user.py` — `UserPublicRead` extended with `followers_count`, `following_count`, `is_following`, `is_followed_by`
+
+#### Repository
+- `app/repositories/follow_repo.py` — `FollowRepository`; methods: `get_follow()`, `is_following()`, `followers_count()`, `following_count()`, `list_followers()`, `list_following()`, `followers_count_batch()`, `following_count_batch()`, `follow()`, `unfollow()`
+
+#### Service
+- `app/services/follow_service.py` — `FollowService`; methods: `follow_user()`, `unfollow_user()`, `get_followers()`, `get_following()`, `get_relationship()`, `get_social_counts()`; all business rules enforced (self-follow, inactive user, deleted user, duplicate follow, not-following)
+
+#### API Endpoints
+- `POST /api/v1/users/{username}/follow` — follow a user (auth required); returns 201
+- `DELETE /api/v1/users/{username}/follow` — unfollow a user (auth required); returns 204
+- `GET /api/v1/users/{username}/followers` — paginated followers list (public); returns 200
+- `GET /api/v1/users/{username}/following` — paginated following list (public); returns 200
+- `GET /api/v1/users/{username}/relationship` — mutual relationship status (auth required); returns 200
+- `GET /api/v1/users/{username}` — updated to include `followers_count`, `following_count`; when called with auth token also includes `is_following`, `is_followed_by`
+
+#### Domain Exceptions
+- `app/core/exceptions.py` — added `SelfFollowError` (→ 400), `AlreadyFollowingError` (→ 409), `NotFollowingError` (→ 409)
+
+#### Application Wiring
+- `app/main.py` — exception handlers for `SelfFollowError`, `AlreadyFollowingError`, `NotFollowingError`
+- `app/api/v1/__init__.py` — `follows.router` registered
+- `app/services/auth/dependencies.py` — `get_optional_current_user` dependency added (optional Bearer token; returns `None` when header is absent)
+- `alembic/env.py` — `Follow` model imported for migration auto-detection
+
+#### Migration
+- `alembic/versions/b3e9f2a1c5d8_phase_7_add_follows_table.py` — creates `follows` table with all columns, constraints, and indexes
+
+---
+
 ## [0.4.0] — 2026-07-20
 
 ### Added — Phase 6: Extended User Profile Management

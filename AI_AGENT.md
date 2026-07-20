@@ -41,11 +41,14 @@ app/
 │   └── __init__.py             ← Exports: Base, engine, AsyncSessionLocal, get_db
 ├── models/
 │   ├── enums.py                ← Gender enum (str-based)
+│   ├── follow.py               ← Follow ORM model (Phase 7: id, follower_id, following_id, created_at)
 │   └── user.py                 ← User ORM model (15 fields: + deleted_at for soft-delete)
 ├── schemas/
 │   ├── auth.py                 ← FirebaseTokenPayload (frozen), AuthenticatedUser
+│   ├── follow.py               ← FollowRead, FollowUserRead, FollowListResponse, RelationshipRead (Phase 7)
 │   └── user.py                 ← UserBase, UserRead, UserPublicRead, UserCreate, UserUpdate, UserDeletedRead
 │                                  + RESERVED_USERNAMES frozenset + username regex validator
+│                                  + UserPublicRead extended with social graph fields (Phase 7)
 ├── services/
 │   ├── auth/
 │   │   ├── __init__.py         ← exports verify_firebase_token, get_current_user
@@ -277,9 +280,12 @@ async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
 | `AuthTokenExpiredError` | 401 | `token_expired` |
 | `AuthTokenRevokedError` | 401 | `token_revoked` |
 | `AuthError` (catch-all) | 401 | `auth_error` |
+| `SelfFollowError` | 400 | `self_follow` |
 | `InactiveUserError` | 403 | `account_inactive` |
 | `UserNotFoundError` | 404 | `user_not_found` |
 | `UsernameConflictError` | 409 | `username_conflict` |
+| `AlreadyFollowingError` | 409 | `already_following` |
+| `NotFollowingError` | 409 | `not_following` |
 | `ReservedUsernameError` | 422 | `reserved_username` |
 | `FirebaseUnavailableError` | 503 | `firebase_unavailable` |
 

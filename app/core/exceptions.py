@@ -110,3 +110,29 @@ class ReservedUsernameError(VeeError):
 
     code = "reserved_username"
     message = "This username is reserved and cannot be used."
+
+
+# ---------------------------------------------------------------------------
+# Social graph errors  (Phase 7)
+# ---------------------------------------------------------------------------
+
+
+class SelfFollowError(VeeError):
+    """Caller attempted to follow their own account."""
+
+    code = "self_follow"
+    message = "You cannot follow yourself."
+
+
+class AlreadyFollowingError(VeeError):
+    """Caller already follows the target user."""
+
+    code = "already_following"
+    message = "You are already following this user."
+
+
+class NotFollowingError(VeeError):
+    """Caller attempted to unfollow a user they do not follow."""
+
+    code = "not_following"
+    message = "You are not following this user."

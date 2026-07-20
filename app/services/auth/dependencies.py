@@ -27,6 +27,7 @@ Security:
 """
 
 import logging
+from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -40,8 +41,55 @@ from app.services.identity_service import IdentityService
 logger = logging.getLogger(__name__)
 
 # HTTPBearer extracts the token from "Authorization: Bearer <token>".
-# auto_error=True → FastAPI returns HTTP 403 if the header is absent.
+# auto_error=True  → FastAPI returns HTTP 403 if the header is absent.
+# auto_error=False → FastAPI passes None if the header is absent (optional auth).
 _bearer_scheme = HTTPBearer(auto_error=True)
+_bearer_scheme_optional = HTTPBearer(auto_error=False)
+
+
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        _bearer_scheme_optional
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """
+    FastAPI dependency that resolves the authenticated caller when a token is
+    present, or returns None when no Authorization header is supplied.
+
+    Use this on public endpoints that optionally enrich the response with
+    user-specific data (e.g. relationship status on a public profile page).
+
+    Args:
+        credentials: Optional HTTPBearer-extracted Authorization header value.
+        db: Async database session from get_db().
+
+    Returns:
+        The resolved User ORM instance, or None if no token was provided.
+
+    Raises:
+        HTTPException 401: Token was provided but is invalid, expired, or revoked.
+        HTTPException 403: Token was provided but the account is inactive.
+    """
+    if credentials is None:
+        return None
+    try:
+        identity_service = IdentityService(db)
+        user: User = await identity_service.login_with_firebase(
+            credentials.credentials
+        )
+        return user
+    except InactiveUserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": exc.code, "message": exc.message},
+        ) from exc
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": exc.code, "message": exc.message},
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 async def get_current_user(

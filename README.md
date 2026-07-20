@@ -157,7 +157,9 @@ alembic history
 | GET | `/health` | Health check |
 | GET | `/docs` | Swagger UI |
 | GET | `/redoc` | ReDoc UI |
-| GET | `/api/v1/users/{username}` | Public user profile |
+| GET | `/api/v1/users/{username}` | Public user profile (with follower/following counts) |
+| GET | `/api/v1/users/{username}/followers` | List a user's followers |
+| GET | `/api/v1/users/{username}/following` | List users a user follows |
 
 ### Protected (Firebase Bearer token required)
 
@@ -168,6 +170,9 @@ alembic history
 | GET | `/api/v1/users/me` | Get own full profile (users namespace) |
 | PATCH | `/api/v1/users/me` | Update own profile |
 | DELETE | `/api/v1/users/me` | Soft-delete own account |
+| POST | `/api/v1/users/{username}/follow` | Follow a user |
+| DELETE | `/api/v1/users/{username}/follow` | Unfollow a user |
+| GET | `/api/v1/users/{username}/relationship` | Mutual relationship status |
 
 ---
 
@@ -187,9 +192,12 @@ All domain errors return a structured JSON body:
 | 401 | `invalid_token` | Malformed Firebase token |
 | 401 | `token_expired` | Firebase token expired |
 | 401 | `token_revoked` | Firebase token revoked |
+| 400 | `self_follow` | Attempted to follow yourself |
 | 403 | `account_inactive` | Account suspended or deleted |
 | 404 | `user_not_found` | Username not found or deleted |
 | 409 | `username_conflict` | Username already taken |
+| 409 | `already_following` | Already following this user |
+| 409 | `not_following` | Not currently following this user |
 | 422 | `reserved_username` | Username is reserved |
 | 503 | `firebase_unavailable` | Firebase service unreachable |
 
@@ -206,8 +214,9 @@ See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for the full phase-by-phase plan.
 | 3 | ✅ | Documentation & Architecture Governance |
 | 4 | ✅ | Core Domain Models & Authentication Foundation |
 | 5 | ✅ | Identity & Authentication Infrastructure |
-| 6 | ✅ | Extended User Profile & Follow System |
-| 7 | ⏳ | Voice Rooms (LiveKit) |
+| 6 | ✅ | Extended User Profile Management |
+| 7 | ✅ | Social Graph (Follow System) |
+| 8 | ⏳ | Voice Rooms (LiveKit) |
 | 8 | ⏳ | Audio Stories (MinIO) |
 | 9 | ⏳ | Chat & Messaging |
 | 10 | ⏳ | Wallet & Payments |

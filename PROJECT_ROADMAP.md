@@ -129,18 +129,46 @@
 
 ---
 
-### ⏳ Phase 7 — Social Graph (Follow System)
+### ✅ Phase 7 — Social Graph (Follow System)
 
 **Goal:** Build follow/unfollow social graph primitives.
 
 **Deliverables:**
-- `app/models/follow.py` — Follow relationship model (follower_id, followee_id, created_at)
-- `app/schemas/follow.py`
-- `app/repositories/follow_repo.py`
-- `app/services/follow_service.py`
-- `app/api/v1/follows.py` — `POST /users/{username}/follow`, `DELETE /users/{username}/follow`, `GET /users/{username}/followers`, `GET /users/{username}/following`
-- Follower/following counts on profile
-- Alembic migration
+- `app/models/follow.py` — Follow model (id, follower_id, following_id, created_at); UNIQUE constraint; CHECK constraint (no self-follow); 3 indexes
+- `app/schemas/follow.py` — `FollowRead`, `FollowUserRead`, `FollowListResponse`, `RelationshipRead`
+- `app/repositories/follow_repo.py` — `follow()`, `unfollow()`, `is_following()`, `followers_count()`, `following_count()`, `list_followers()`, `list_following()`, batch count helpers
+- `app/services/follow_service.py` — all business rules enforced; `follow_user()`, `unfollow_user()`, `get_followers()`, `get_following()`, `get_relationship()`, `get_social_counts()`
+- `app/api/v1/follows.py` — 5 endpoints (see below)
+- `app/schemas/user.py` — `UserPublicRead` extended with `followers_count`, `following_count`, `is_following`, `is_followed_by`
+- `app/api/v1/users.py` — `GET /users/{username}` enriched with social graph data; optional auth for relationship context
+- `app/core/exceptions.py` — `SelfFollowError` (400), `AlreadyFollowingError` (409), `NotFollowingError` (409)
+- `app/main.py` — exception handlers for new social graph exceptions
+- `app/services/auth/dependencies.py` — `get_optional_current_user` dependency added
+- `alembic/env.py` — Follow model imported for migration detection
+- `alembic/versions/b3e9f2a1c5d8_phase_7_add_follows_table.py` — Alembic migration
+
+**API Endpoints:**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/users/{username}/follow` | Required | Follow a user |
+| DELETE | `/api/v1/users/{username}/follow` | Required | Unfollow a user |
+| GET | `/api/v1/users/{username}/followers` | Optional | List followers |
+| GET | `/api/v1/users/{username}/following` | Optional | List following |
+| GET | `/api/v1/users/{username}/relationship` | Required | Mutual relationship status |
+
+**Success Criteria:**
+- Follow works ✅
+- Unfollow works ✅
+- Self-follow blocked (DB CHECK + service layer) ✅
+- Duplicate follow blocked (DB UNIQUE + service layer) ✅
+- Inactive/deleted user cannot be followed ✅
+- Counts correct on public profile ✅
+- Relationship endpoint works ✅
+- Existing Authentication unaffected ✅
+- Existing User API unaffected ✅
+- Import error নেই ✅
+- Alembic migration generated ✅
 
 ---
 

@@ -12,7 +12,7 @@ To add a new resource:
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users
+from app.api.v1 import auth, follows, users
 
 router = APIRouter()
 
@@ -21,3 +21,6 @@ router.include_router(auth.router)
 
 # User profile routes — /api/v1/users/...  (Phase 6)
 router.include_router(users.router)
+
+# Social graph routes — /api/v1/users/{username}/follow|followers|following|relationship  (Phase 7)
+router.include_router(follows.router)

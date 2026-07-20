@@ -222,6 +222,14 @@ class UserPublicRead(BaseModel):
 
     Excludes: firebase_uid, email, phone, birth_date, deleted_at.
     Returned from GET /api/v1/users/{username}.
+
+    Phase 7 additions:
+        followers_count — total number of followers (always present)
+        following_count — total number of accounts followed (always present)
+        is_following    — True if the authenticated caller follows this user
+                          (None when the endpoint is called without auth)
+        is_followed_by  — True if this user follows the authenticated caller
+                          (None when the endpoint is called without auth)
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -235,6 +243,11 @@ class UserPublicRead(BaseModel):
     is_verified: bool
     created_at: datetime
     last_seen_at: Optional[datetime] = None
+    # Social graph fields (Phase 7)
+    followers_count: int = 0
+    following_count: int = 0
+    is_following: Optional[bool] = None
+    is_followed_by: Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------

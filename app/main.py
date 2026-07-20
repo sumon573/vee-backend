@@ -28,12 +28,15 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import router as v1_router
 from app.core.config import settings
 from app.core.exceptions import (
+    AlreadyFollowingError,
     AuthError,
     AuthTokenExpiredError,
     AuthTokenRevokedError,
     FirebaseUnavailableError,
     InactiveUserError,
+    NotFollowingError,
     ReservedUsernameError,
+    SelfFollowError,
     UserNotFoundError,
     UsernameConflictError,
     VeeError,
@@ -147,6 +150,31 @@ async def reserved_username_handler(
     request: Request, exc: ReservedUsernameError
 ) -> JSONResponse:
     return JSONResponse(status_code=422, content=_error_body(exc))
+
+
+# ---- 400 — Bad request (social graph) -------------------------------------
+
+@app.exception_handler(SelfFollowError)
+async def self_follow_handler(
+    request: Request, exc: SelfFollowError
+) -> JSONResponse:
+    return JSONResponse(status_code=400, content=_error_body(exc))
+
+
+# ---- 409 — Conflict (social graph) ----------------------------------------
+
+@app.exception_handler(AlreadyFollowingError)
+async def already_following_handler(
+    request: Request, exc: AlreadyFollowingError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=_error_body(exc))
+
+
+@app.exception_handler(NotFollowingError)
+async def not_following_handler(
+    request: Request, exc: NotFollowingError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=_error_body(exc))
 
 
 # ---- 503 — External service failures ---------------------------------------
