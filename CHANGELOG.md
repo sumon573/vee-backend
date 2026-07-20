@@ -11,6 +11,43 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.6.0] — 2026-07-20
+
+### Added — Phase 8: Privacy & Safety Foundation
+
+#### Model
+- `app/models/block.py` — `Block` ORM model; fields: `id` (UUID v4), `blocker_id` (FK → users.id CASCADE), `blocked_id` (FK → users.id CASCADE), `created_at`; UNIQUE constraint `uq_blocks_blocker_blocked`; CHECK constraint `ck_blocks_no_self_block`; indexes `ix_blocks_blocker_id`, `ix_blocks_blocked_id`, `ix_blocks_created_at`
+
+#### Schemas
+- `app/schemas/block.py` — `BlockRead`, `BlockedUserRead`, `BlockedListResponse`
+- `app/schemas/user.py` — `UserPublicRead` extended with `is_blocked`, `has_blocked_me`
+
+#### Repository
+- `app/repositories/block_repo.py` — `BlockRepository`; methods: `get_block()`, `is_blocked()`, `is_mutually_blocked()`, `blocked_count()`, `blocked_users()`, `blocked_by_users()`, `block_user()`, `unblock_user()`
+
+#### Service
+- `app/services/block_service.py` — `BlockService`; methods: `block_user()`, `unblock_user()`, `get_blocked_users()`, `is_blocked_in_any_direction()`; business rules: no self-block, no inactive/deleted target, follow relationships auto-removed in both directions on block
+- `app/services/privacy_guard.py` — `PrivacyGuard`; methods: `can_view_profile()`, `can_follow()`, `can_message()` (stub for Phase 11), `can_join_room()` (stub for Phase 9); all check for mutual block
+
+#### API Endpoints
+- `POST /api/v1/users/{username}/block` — block a user; removes follow in both directions (auth required); returns 201
+- `DELETE /api/v1/users/{username}/block` — unblock a user (auth required); returns 204
+- `GET /api/v1/users/blocked` — paginated list of blocked users (auth required); returns 200
+- `GET /api/v1/users/{username}` — updated to include `is_blocked`, `has_blocked_me` when called with auth token
+
+#### Domain Exceptions
+- `app/core/exceptions.py` — added `SelfBlockError` (→ 400), `AlreadyBlockedError` (→ 409), `NotBlockedError` (→ 409)
+
+#### Application Wiring
+- `app/main.py` — exception handlers for `SelfBlockError`, `AlreadyBlockedError`, `NotBlockedError`
+- `app/api/v1/__init__.py` — `blocks.router` registered before `users.router` (route precedence: static `/blocked` before dynamic `/{username}`)
+- `alembic/env.py` — `Block` model imported for migration auto-detection
+
+#### Migration
+- `alembic/versions/c4f8e3b2d9a1_phase_8_add_blocks_table.py` — creates `blocks` table with all columns, constraints, and indexes
+
+---
+
 ## [0.5.0] — 2026-07-20
 
 ### Added — Phase 7: Social Graph Foundation

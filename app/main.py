@@ -8,13 +8,18 @@ Startup order:
     4. API routers mounted.
     5. Health endpoints defined.
 
-Exception → HTTP status map (Phase 5 + Phase 6):
+Exception → HTTP status map (Phase 5–8):
     AuthTokenExpiredError    → 401
     AuthTokenRevokedError    → 401
     AuthError (all others)   → 401
+    SelfBlockError           → 400
     InactiveUserError        → 403
     UserNotFoundError        → 404
     UsernameConflictError    → 409
+    AlreadyFollowingError    → 409
+    NotFollowingError        → 409
+    AlreadyBlockedError      → 409
+    NotBlockedError          → 409
     ReservedUsernameError    → 422
     FirebaseUnavailableError → 503
 """
@@ -28,14 +33,17 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import router as v1_router
 from app.core.config import settings
 from app.core.exceptions import (
+    AlreadyBlockedError,
     AlreadyFollowingError,
     AuthError,
     AuthTokenExpiredError,
     AuthTokenRevokedError,
     FirebaseUnavailableError,
     InactiveUserError,
+    NotBlockedError,
     NotFollowingError,
     ReservedUsernameError,
+    SelfBlockError,
     SelfFollowError,
     UserNotFoundError,
     UsernameConflictError,
@@ -173,6 +181,31 @@ async def already_following_handler(
 @app.exception_handler(NotFollowingError)
 async def not_following_handler(
     request: Request, exc: NotFollowingError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=_error_body(exc))
+
+
+# ---- 400 — Bad request (privacy / blocking) --------------------------------
+
+@app.exception_handler(SelfBlockError)
+async def self_block_handler(
+    request: Request, exc: SelfBlockError
+) -> JSONResponse:
+    return JSONResponse(status_code=400, content=_error_body(exc))
+
+
+# ---- 409 — Conflict (privacy / blocking) -----------------------------------
+
+@app.exception_handler(AlreadyBlockedError)
+async def already_blocked_handler(
+    request: Request, exc: AlreadyBlockedError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=_error_body(exc))
+
+
+@app.exception_handler(NotBlockedError)
+async def not_blocked_handler(
+    request: Request, exc: NotBlockedError
 ) -> JSONResponse:
     return JSONResponse(status_code=409, content=_error_body(exc))
 

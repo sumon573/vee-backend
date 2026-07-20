@@ -8,16 +8,25 @@ To add a new resource:
     1. Create app/api/v1/<resource>.py with an APIRouter.
     2. Import and include it below.
     3. No changes to app/main.py are required.
+
+IMPORTANT — Router include order:
+    Routers with static paths under /users/ (e.g. /users/blocked, /users/me)
+    must be included BEFORE the users router to prevent FastAPI from capturing
+    static segments as {username} wildcard values.
 """
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, follows, users
+from app.api.v1 import auth, blocks, follows, users
 
 router = APIRouter()
 
 # Auth routes — /api/v1/auth/...
 router.include_router(auth.router)
+
+# Privacy / block routes — /api/v1/users/blocked, /api/v1/users/{username}/block  (Phase 8)
+# MUST be included before users.router — /users/blocked must match before /users/{username}
+router.include_router(blocks.router)
 
 # User profile routes — /api/v1/users/...  (Phase 6)
 router.include_router(users.router)

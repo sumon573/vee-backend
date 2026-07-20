@@ -248,6 +248,10 @@ class UserPublicRead(BaseModel):
     following_count: int = 0
     is_following: Optional[bool] = None
     is_followed_by: Optional[bool] = None
+    # Privacy / block fields (Phase 8)
+    # None when the endpoint is called without auth
+    is_blocked: Optional[bool] = None      # caller has blocked this user
+    has_blocked_me: Optional[bool] = None  # this user has blocked the caller
 
 
 # ---------------------------------------------------------------------------

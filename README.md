@@ -39,6 +39,8 @@ app/
 ├── api/            # Route handlers and API versioning
 │   └── v1/
 │       ├── auth.py     # POST /api/v1/auth/login, GET /api/v1/auth/me
+│       ├── blocks.py   # POST|DELETE /users/{username}/block, GET /users/blocked
+│       ├── follows.py  # POST|DELETE /users/{username}/follow, GET followers/following/relationship
 │       └── users.py    # GET/PATCH/DELETE /api/v1/users/me, GET /api/v1/users/{username}
 ├── core/
 │   ├── config.py   # Pydantic Settings — all env vars
@@ -50,16 +52,25 @@ app/
 │   └── __init__.py # Public exports
 ├── models/         # ORM models
 │   ├── enums.py    # Gender enum
-│   └── user.py     # User model (with soft-delete support)
+│   ├── user.py     # User model (with soft-delete support)
+│   ├── follow.py   # Follow relationship model (Phase 7)
+│   └── block.py    # Block relationship model (Phase 8)
 ├── schemas/        # Pydantic request/response schemas
 │   ├── auth.py     # FirebaseTokenPayload, AuthenticatedUser
-│   └── user.py     # UserRead, UserPublicRead, UserUpdate, UserDeletedRead
+│   ├── user.py     # UserRead, UserPublicRead, UserUpdate, UserDeletedRead
+│   ├── follow.py   # FollowRead, FollowUserRead, FollowListResponse, RelationshipRead
+│   └── block.py    # BlockRead, BlockedUserRead, BlockedListResponse
 ├── services/       # Business logic layer
 │   ├── auth/       # Firebase token verification + get_current_user dependency
 │   ├── identity_service.py # Login orchestration
-│   └── user_service.py     # Profile management, soft-delete
+│   ├── user_service.py     # Profile management, soft-delete
+│   ├── follow_service.py   # Follow/unfollow business rules (Phase 7)
+│   ├── block_service.py    # Block/unblock business rules (Phase 8)
+│   └── privacy_guard.py    # Reusable privacy permission checks (Phase 8)
 ├── repositories/   # Data access layer
-│   └── user_repo.py # All User DB queries
+│   ├── user_repo.py     # All User DB queries
+│   ├── follow_repo.py   # All Follow DB queries (Phase 7)
+│   └── block_repo.py    # All Block DB queries (Phase 8)
 ├── middleware/     # Custom ASGI middleware
 ├── utils/
 │   └── db_url.py   # PostgreSQL URL normalizer for asyncpg
@@ -157,7 +168,7 @@ alembic history
 | GET | `/health` | Health check |
 | GET | `/docs` | Swagger UI |
 | GET | `/redoc` | ReDoc UI |
-| GET | `/api/v1/users/{username}` | Public user profile (with follower/following counts) |
+| GET | `/api/v1/users/{username}` | Public user profile (with follower/following counts; block status when authenticated) |
 | GET | `/api/v1/users/{username}/followers` | List a user's followers |
 | GET | `/api/v1/users/{username}/following` | List users a user follows |
 
@@ -173,6 +184,9 @@ alembic history
 | POST | `/api/v1/users/{username}/follow` | Follow a user |
 | DELETE | `/api/v1/users/{username}/follow` | Unfollow a user |
 | GET | `/api/v1/users/{username}/relationship` | Mutual relationship status |
+| POST | `/api/v1/users/{username}/block` | Block a user (auto-removes follow in both directions) |
+| DELETE | `/api/v1/users/{username}/block` | Unblock a user |
+| GET | `/api/v1/users/blocked` | Paginated list of blocked users |
 
 ---
 
@@ -198,6 +212,9 @@ All domain errors return a structured JSON body:
 | 409 | `username_conflict` | Username already taken |
 | 409 | `already_following` | Already following this user |
 | 409 | `not_following` | Not currently following this user |
+| 400 | `self_block` | Attempted to block yourself |
+| 409 | `already_blocked` | Already blocked this user |
+| 409 | `not_blocked` | Not currently blocking this user |
 | 422 | `reserved_username` | Username is reserved |
 | 503 | `firebase_unavailable` | Firebase service unreachable |
 
@@ -216,7 +233,8 @@ See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for the full phase-by-phase plan.
 | 5 | ✅ | Identity & Authentication Infrastructure |
 | 6 | ✅ | Extended User Profile Management |
 | 7 | ✅ | Social Graph (Follow System) |
-| 8 | ⏳ | Voice Rooms (LiveKit) |
+| 8 | ✅ | Privacy & Safety Foundation (Block System) |
+| 9 | ⏳ | Voice Rooms (LiveKit) |
 | 8 | ⏳ | Audio Stories (MinIO) |
 | 9 | ⏳ | Chat & Messaging |
 | 10 | ⏳ | Wallet & Payments |

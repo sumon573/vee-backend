@@ -172,7 +172,50 @@
 
 ---
 
-### ⏳ Phase 8 — Voice Rooms (LiveKit)
+### ✅ Phase 8 — Privacy & Safety Foundation
+
+**Goal:** Reusable block infrastructure and PrivacyGuard service for all future features (Chat, Voice Room, Story, Notification, Search).
+
+**Deliverables:**
+- `app/models/block.py` — Block model (id, blocker_id, blocked_id, created_at); UNIQUE + CHECK constraints; 3 indexes
+- `app/schemas/block.py` — `BlockRead`, `BlockedUserRead`, `BlockedListResponse`
+- `app/repositories/block_repo.py` — `block_user()`, `unblock_user()`, `is_blocked()`, `is_mutually_blocked()`, `blocked_count()`, `blocked_users()`, `blocked_by_users()`
+- `app/services/block_service.py` — business rules: no self-block, no inactive/deleted target, follow auto-removal on block, `block_user()`, `unblock_user()`, `get_blocked_users()`, `is_blocked_in_any_direction()`
+- `app/services/privacy_guard.py` — `PrivacyGuard`: `can_view_profile()`, `can_follow()`, `can_message()` (stub), `can_join_room()` (stub)
+- `app/api/v1/blocks.py` — 3 endpoints (see below)
+- `app/schemas/user.py` — `UserPublicRead` extended with `is_blocked`, `has_blocked_me`
+- `app/api/v1/users.py` — `GET /users/{username}` enriched with block status when authenticated
+- `app/core/exceptions.py` — `SelfBlockError` (400), `AlreadyBlockedError` (409), `NotBlockedError` (409)
+- `app/main.py` — exception handlers for 3 new block exceptions
+- `app/api/v1/__init__.py` — blocks router registered before users router (route precedence)
+- `alembic/env.py` — Block model imported for migration detection
+- `alembic/versions/c4f8e3b2d9a1_phase_8_add_blocks_table.py` — Alembic migration
+
+**API Endpoints:**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/users/{username}/block` | Required | Block a user (also removes follow in both directions) |
+| DELETE | `/api/v1/users/{username}/block` | Required | Unblock a user |
+| GET | `/api/v1/users/blocked` | Required | Paginated list of blocked users |
+
+**Success Criteria:**
+- Block works ✅
+- Unblock works ✅
+- Self-block blocked (DB CHECK + service layer) ✅
+- Duplicate block blocked (DB UNIQUE + service layer) ✅
+- Follow auto-removed when blocking ✅
+- Inactive/deleted user cannot be blocked ✅
+- is_blocked / has_blocked_me on public profile ✅
+- PrivacyGuard foundation ready ✅
+- Existing Follow System unaffected ✅
+- Existing User APIs unaffected ✅
+- Import error নেই ✅
+- Alembic migration generated ✅
+
+---
+
+### ⏳ Phase 9 — Voice Rooms (LiveKit)
 
 **Goal:** Real-time voice room functionality powered by LiveKit.
 
@@ -185,7 +228,7 @@
 
 ---
 
-### ⏳ Phase 9 — Audio Stories (MinIO)
+### ⏳ Phase 10 — Audio Stories (MinIO)
 
 **Goal:** Let users record and publish short audio stories.
 
@@ -197,43 +240,43 @@
 
 ---
 
-### ⏳ Phase 10 — Chat & Direct Messaging
+### ⏳ Phase 11 — Chat & Direct Messaging
 
 **Goal:** Real-time 1-to-1 and group chat via WebSocket + Redis pub/sub.
 
 ---
 
-### ⏳ Phase 11 — Wallet & Payments
+### ⏳ Phase 12 — Wallet & Payments
 
 **Goal:** In-app virtual currency (coins) for tipping hosts.
 
 ---
 
-### ⏳ Phase 12 — Notifications
+### ⏳ Phase 13 — Notifications
 
 **Goal:** Push and in-app notification system (FCM + Celery).
 
 ---
 
-### ⏳ Phase 13 — Security Hardening
+### ⏳ Phase 14 — Security Hardening
 
 **Goal:** Rate limiting, CORS lock-down, security headers, OWASP Top 10 audit.
 
 ---
 
-### ⏳ Phase 14 — Testing
+### ⏳ Phase 15 — Testing
 
 **Goal:** `pytest` + `pytest-asyncio`, 80%+ coverage, CI integration.
 
 ---
 
-### ⏳ Phase 15 — Observability & Monitoring
+### ⏳ Phase 16 — Observability & Monitoring
 
 **Goal:** Structured logging (structlog), Prometheus metrics, Sentry.
 
 ---
 
-### ⏳ Phase 16 — Deployment & Infrastructure
+### ⏳ Phase 17 — Deployment & Infrastructure
 
 **Goal:** Docker, `docker-compose.yml`, GitHub Actions CI/CD, zero-downtime deploys.
 
@@ -250,12 +293,13 @@ Phase 1 (Foundation)
                                     └── Phase 6 (User Profiles) ← current
                                             └── Phase 7 (Follow System)
                                             └── Phase 8 (Voice Rooms)
-                                            └── Phase 9 (Audio Stories)
-                                            └── Phase 10 (Chat)
-                                                    └── Phase 11 (Wallet)
-                                                            └── Phase 12 (Notifications)
-                                                                    └── Phase 13 (Security)
-                                                                            └── Phase 14 (Testing)
-                                                                                    └── Phase 15 (Monitoring)
-                                                                                            └── Phase 16 (Deployment)
+                                            └── Phase 9 (Voice Rooms)
+                                            └── Phase 10 (Audio Stories)
+                                            └── Phase 11 (Chat)
+                                                    └── Phase 12 (Wallet)
+                                                            └── Phase 13 (Notifications)
+                                                                    └── Phase 14 (Security)
+                                                                            └── Phase 15 (Testing)
+                                                                                    └── Phase 16 (Monitoring)
+                                                                                            └── Phase 17 (Deployment)
 ```

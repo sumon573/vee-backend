@@ -13,9 +13,12 @@ Exception → HTTP status mapping (enforced in app/main.py):
     AuthTokenExpiredError    → 401
     AuthTokenRevokedError    → 401
     FirebaseUnavailableError → 503
+    SelfBlockError           → 400
     InactiveUserError        → 403
     UserNotFoundError        → 404
     UsernameConflictError    → 409
+    AlreadyBlockedError      → 409
+    NotBlockedError          → 409
     ReservedUsernameError    → 422
 """
 
@@ -136,3 +139,29 @@ class NotFollowingError(VeeError):
 
     code = "not_following"
     message = "You are not following this user."
+
+
+# ---------------------------------------------------------------------------
+# Privacy / blocking errors  (Phase 8)
+# ---------------------------------------------------------------------------
+
+
+class SelfBlockError(VeeError):
+    """Caller attempted to block their own account."""
+
+    code = "self_block"
+    message = "You cannot block yourself."
+
+
+class AlreadyBlockedError(VeeError):
+    """Caller has already blocked the target user."""
+
+    code = "already_blocked"
+    message = "You have already blocked this user."
+
+
+class NotBlockedError(VeeError):
+    """Caller attempted to unblock a user they have not blocked."""
+
+    code = "not_blocked"
+    message = "You have not blocked this user."

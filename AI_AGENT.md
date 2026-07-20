@@ -28,7 +28,10 @@ app/
 ├── api/
 │   └── v1/
 │       ├── __init__.py         ← combined v1 router — mounted at /api/v1
+│       │                          (blocks before users router — route precedence for /users/blocked)
 │       ├── auth.py             ← POST /api/v1/auth/login, GET /api/v1/auth/me
+│       ├── follows.py          ← social graph endpoints (Phase 7)
+│       ├── blocks.py           ← block endpoints (Phase 8)
 │       └── users.py            ← GET|PATCH|DELETE /api/v1/users/me, GET /api/v1/users/{username}
 ├── core/
 │   ├── config.py               ← All env vars via pydantic_settings.BaseSettings
@@ -41,14 +44,16 @@ app/
 │   └── __init__.py             ← Exports: Base, engine, AsyncSessionLocal, get_db
 ├── models/
 │   ├── enums.py                ← Gender enum (str-based)
+│   ├── user.py                 ← User ORM model (15 fields: + deleted_at for soft-delete)
 │   ├── follow.py               ← Follow ORM model (Phase 7: id, follower_id, following_id, created_at)
-│   └── user.py                 ← User ORM model (15 fields: + deleted_at for soft-delete)
+│   └── block.py                ← Block ORM model (Phase 8: id, blocker_id, blocked_id, created_at)
 ├── schemas/
 │   ├── auth.py                 ← FirebaseTokenPayload (frozen), AuthenticatedUser
+│   ├── user.py                 ← UserBase, UserRead, UserPublicRead, UserCreate, UserUpdate, UserDeletedRead
+│   │                              + RESERVED_USERNAMES frozenset + username regex validator
+│   │                              + UserPublicRead extended with social graph + block fields (Phase 7–8)
 │   ├── follow.py               ← FollowRead, FollowUserRead, FollowListResponse, RelationshipRead (Phase 7)
-│   └── user.py                 ← UserBase, UserRead, UserPublicRead, UserCreate, UserUpdate, UserDeletedRead
-│                                  + RESERVED_USERNAMES frozenset + username regex validator
-│                                  + UserPublicRead extended with social graph fields (Phase 7)
+│   └── block.py                ← BlockRead, BlockedUserRead, BlockedListResponse (Phase 8)
 ├── services/
 │   ├── auth/
 │   │   ├── __init__.py         ← exports verify_firebase_token, get_current_user
@@ -56,11 +61,17 @@ app/
 │   │   ├── firebase.py         ← verify_firebase_token() — full implementation
 │   │   └── dependencies.py     ← get_current_user FastAPI dependency — full implementation
 │   ├── identity_service.py     ← IdentityService: login_with_firebase(), get_identity()
-│   └── user_service.py         ← UserService: sync_firebase_user(), get_profile(),
-│                                  get_by_username(), update_my_profile(), soft_delete_user(),
-│                                  update_last_seen()
+│   ├── user_service.py         ← UserService: sync_firebase_user(), get_profile(),
+│   │                              get_by_username(), update_my_profile(), soft_delete_user(),
+│   │                              update_last_seen()
+│   ├── follow_service.py       ← FollowService: follow/unfollow + list queries (Phase 7)
+│   ├── block_service.py        ← BlockService: block/unblock + follow auto-removal (Phase 8)
+│   └── privacy_guard.py        ← PrivacyGuard: can_view_profile(), can_follow(),
+│                                  can_message() stub, can_join_room() stub (Phase 8)
 ├── repositories/
-│   └── user_repo.py            ← UserRepository — all methods implemented (+ soft_delete, search_by_username_prefix)
+│   ├── user_repo.py            ← UserRepository — all methods implemented (+ soft_delete, search_by_username_prefix)
+│   ├── follow_repo.py          ← FollowRepository — 9 methods (Phase 7)
+│   └── block_repo.py           ← BlockRepository — 7 methods incl. is_mutually_blocked() (Phase 8)
 ├── middleware/                  ← ASGI middleware — currently empty
 ├── utils/
 │   └── db_url.py               ← normalize_database_url()
@@ -68,9 +79,11 @@ app/
 
 alembic/
 ├── versions/
-│   ├── cfeccaac3dc7_phase_4_add_users_table.py         ← users table + gender_enum
-│   └── a8f3d1c90e2b_phase_6_add_deleted_at_to_users.py ← deleted_at column + index
-├── env.py                      ← imports User model; async migration runner
+│   ├── cfeccaac3dc7_phase_4_add_users_table.py              ← users table + gender_enum
+│   ├── a8f3d1c90e2b_phase_6_add_deleted_at_to_users.py      ← deleted_at column + index
+│   ├── b3e9f2a1c5d8_phase_7_add_follows_table.py            ← follows table (Phase 7)
+│   └── c4f8e3b2d9a1_phase_8_add_blocks_table.py             ← blocks table (Phase 8)
+├── env.py                      ← imports User, Follow, Block models; async migration runner
 └── script.py.mako
 alembic.ini
 requirements.txt                ← includes firebase-admin>=6.5.0
@@ -81,10 +94,10 @@ requirements.txt                ← includes firebase-admin>=6.5.0
 
 ## Current Phase
 
-**Phase 6 — Extended User Profile Management** ✅ Complete
+**Phase 8 — Privacy & Safety Foundation** ✅ Complete
 
 Next phase:
-- ⏳ Phase 7 — Social Graph (Follow System)
+- ⏳ Phase 9 — Voice Rooms (LiveKit)
 
 See `PROJECT_ROADMAP.md` for the complete phase list.
 
@@ -102,7 +115,15 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 | GET | `/api/v1/users/me` | Bearer Firebase token | Get own full profile |
 | PATCH | `/api/v1/users/me` | Bearer Firebase token | Update own profile |
 | DELETE | `/api/v1/users/me` | Bearer Firebase token | Soft-delete own account |
-| GET | `/api/v1/users/{username}` | None | Public profile by username |
+| GET | `/api/v1/users/{username}` | None (optional) | Public profile by username (social + block status when authenticated) |
+| POST | `/api/v1/users/{username}/follow` | Bearer Firebase token | Follow a user |
+| DELETE | `/api/v1/users/{username}/follow` | Bearer Firebase token | Unfollow a user |
+| GET | `/api/v1/users/{username}/followers` | None | List followers |
+| GET | `/api/v1/users/{username}/following` | None | List following |
+| GET | `/api/v1/users/{username}/relationship` | Bearer Firebase token | Mutual relationship status |
+| POST | `/api/v1/users/{username}/block` | Bearer Firebase token | Block a user |
+| DELETE | `/api/v1/users/{username}/block` | Bearer Firebase token | Unblock a user |
+| GET | `/api/v1/users/blocked` | Bearer Firebase token | List blocked users |
 
 ---
 
@@ -158,6 +179,25 @@ FastAPI Router
 - `normalize_database_url()` utility
 - Alembic configured for async migrations
 
+### Phase 7 — Social Graph (Follow System)
+- Follow ORM model with UNIQUE + CHECK constraints + 3 indexes
+- FollowRepository (9 methods), FollowService (6 methods)
+- 5 API endpoints: follow, unfollow, followers, following, relationship
+- get_optional_current_user dependency for optional auth
+- UserPublicRead extended with social graph fields
+- Alembic migration: `b3e9f2a1c5d8`
+
+### Phase 8 — Privacy & Safety Foundation
+- Block ORM model with UNIQUE + CHECK constraints + 3 indexes
+- BlockRepository (7 methods including is_mutually_blocked)
+- BlockService: block/unblock with follow auto-removal, blocked-list query
+- PrivacyGuard: can_view_profile, can_follow, can_message (stub), can_join_room (stub)
+- 3 API endpoints: block, unblock, list-blocked
+- UserPublicRead extended with is_blocked, has_blocked_me
+- SelfBlockError (400), AlreadyBlockedError (409), NotBlockedError (409)
+- blocks router included before users router (route precedence for /users/blocked)
+- Alembic migration: `c4f8e3b2d9a1`
+
 ### Phase 3 — Documentation
 - `ARCHITECTURE.md`, `PROJECT_ROADMAP.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `AI_AGENT.md`
 
@@ -190,16 +230,15 @@ FastAPI Router
 
 | Phase | Description |
 |-------|-------------|
-| 7 | Social Graph — Follow/Unfollow system |
-| 8 | Voice Rooms (LiveKit integration) |
-| 9 | Audio Stories (MinIO / S3 storage) |
-| 10 | Chat & Direct Messaging (WebSocket + Redis) |
-| 11 | Wallet & Payments |
-| 12 | Notifications (FCM + Celery) |
-| 13 | Security Hardening |
-| 14 | Testing (pytest, 80%+ coverage) |
-| 15 | Observability & Monitoring (structlog, Prometheus, Sentry) |
-| 16 | Deployment & Infrastructure (Docker, CI/CD) |
+| 9 | Voice Rooms (LiveKit integration) |
+| 10 | Audio Stories (MinIO / S3 storage) |
+| 11 | Chat & Direct Messaging (WebSocket + Redis) |
+| 12 | Wallet & Payments |
+| 13 | Notifications (FCM + Celery) |
+| 14 | Security Hardening |
+| 15 | Testing (pytest, 80%+ coverage) |
+| 16 | Observability & Monitoring (structlog, Prometheus, Sentry) |
+| 17 | Deployment & Infrastructure (Docker, CI/CD) |
 
 ---
 
@@ -281,11 +320,14 @@ async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
 | `AuthTokenRevokedError` | 401 | `token_revoked` |
 | `AuthError` (catch-all) | 401 | `auth_error` |
 | `SelfFollowError` | 400 | `self_follow` |
+| `SelfBlockError` | 400 | `self_block` |
 | `InactiveUserError` | 403 | `account_inactive` |
 | `UserNotFoundError` | 404 | `user_not_found` |
 | `UsernameConflictError` | 409 | `username_conflict` |
 | `AlreadyFollowingError` | 409 | `already_following` |
 | `NotFollowingError` | 409 | `not_following` |
+| `AlreadyBlockedError` | 409 | `already_blocked` |
+| `NotBlockedError` | 409 | `not_blocked` |
 | `ReservedUsernameError` | 422 | `reserved_username` |
 | `FirebaseUnavailableError` | 503 | `firebase_unavailable` |
 
