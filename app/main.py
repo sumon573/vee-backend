@@ -8,13 +8,17 @@ Startup order:
     4. API routers mounted.
     5. Health endpoints defined.
 
-Exception → HTTP status map (Phase 5–8):
+Exception → HTTP status map (Phase 5–9):
     AuthTokenExpiredError    → 401
     AuthTokenRevokedError    → 401
     AuthError (all others)   → 401
+    SelfFollowError          → 400
     SelfBlockError           → 400
+    SelfMessageError         → 400
     InactiveUserError        → 403
+    MessagePermissionError   → 403
     UserNotFoundError        → 404
+    ConversationNotFoundError→ 404
     UsernameConflictError    → 409
     AlreadyFollowingError    → 409
     NotFollowingError        → 409
@@ -38,13 +42,16 @@ from app.core.exceptions import (
     AuthError,
     AuthTokenExpiredError,
     AuthTokenRevokedError,
+    ConversationNotFoundError,
     FirebaseUnavailableError,
     InactiveUserError,
+    MessagePermissionError,
     NotBlockedError,
     NotFollowingError,
     ReservedUsernameError,
     SelfBlockError,
     SelfFollowError,
+    SelfMessageError,
     UserNotFoundError,
     UsernameConflictError,
     VeeError,
@@ -208,6 +215,33 @@ async def not_blocked_handler(
     request: Request, exc: NotBlockedError
 ) -> JSONResponse:
     return JSONResponse(status_code=409, content=_error_body(exc))
+
+
+# ---- 400 — Bad request (direct messaging) ----------------------------------
+
+@app.exception_handler(SelfMessageError)
+async def self_message_handler(
+    request: Request, exc: SelfMessageError
+) -> JSONResponse:
+    return JSONResponse(status_code=400, content=_error_body(exc))
+
+
+# ---- 403 — Forbidden (direct messaging) ------------------------------------
+
+@app.exception_handler(MessagePermissionError)
+async def message_permission_handler(
+    request: Request, exc: MessagePermissionError
+) -> JSONResponse:
+    return JSONResponse(status_code=403, content=_error_body(exc))
+
+
+# ---- 404 — Not found (direct messaging) ------------------------------------
+
+@app.exception_handler(ConversationNotFoundError)
+async def conversation_not_found_handler(
+    request: Request, exc: ConversationNotFoundError
+) -> JSONResponse:
+    return JSONResponse(status_code=404, content=_error_body(exc))
 
 
 # ---- 503 — External service failures ---------------------------------------

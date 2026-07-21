@@ -17,7 +17,7 @@ IMPORTANT — Router include order:
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, blocks, follows, users
+from app.api.v1 import auth, blocks, follows, messages, users
 
 router = APIRouter()
 
@@ -33,3 +33,8 @@ router.include_router(users.router)
 
 # Social graph routes — /api/v1/users/{username}/follow|followers|following|relationship  (Phase 7)
 router.include_router(follows.router)
+
+# Direct Messaging routes — /api/v1/messages/...  (Phase 9)
+# Static sub-paths (/conversations) are defined before dynamic (/{conversation_id})
+# inside the messages router itself, so include order here is safe.
+router.include_router(messages.router)

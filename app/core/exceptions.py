@@ -165,3 +165,29 @@ class NotBlockedError(VeeError):
 
     code = "not_blocked"
     message = "You have not blocked this user."
+
+
+# ---------------------------------------------------------------------------
+# Direct Messaging errors  (Phase 9)
+# ---------------------------------------------------------------------------
+
+
+class SelfMessageError(VeeError):
+    """Caller attempted to start a conversation with themselves."""
+
+    code = "self_message"
+    message = "You cannot send a message to yourself."
+
+
+class ConversationNotFoundError(VeeError):
+    """Conversation does not exist or the requesting user is not a participant."""
+
+    code = "conversation_not_found"
+    message = "Conversation not found."
+
+
+class MessagePermissionError(VeeError):
+    """Caller is blocked by or has blocked the recipient."""
+
+    code = "message_not_allowed"
+    message = "You are not allowed to message this user."

@@ -43,17 +43,22 @@ app/
 │   ├── session.py              ← AsyncSessionLocal + get_db FastAPI dependency
 │   └── __init__.py             ← Exports: Base, engine, AsyncSessionLocal, get_db
 ├── models/
-│   ├── enums.py                ← Gender enum (str-based)
+│   ├── enums.py                ← Gender enum + MessageType enum (Phase 9)
 │   ├── user.py                 ← User ORM model (15 fields: + deleted_at for soft-delete)
 │   ├── follow.py               ← Follow ORM model (Phase 7: id, follower_id, following_id, created_at)
-│   └── block.py                ← Block ORM model (Phase 8: id, blocker_id, blocked_id, created_at)
+│   ├── block.py                ← Block ORM model (Phase 8: id, blocker_id, blocked_id, created_at)
+│   ├── conversation.py         ← Conversation + ConversationParticipant ORM models (Phase 9)
+│   └── message.py              ← Message ORM model (Phase 9: soft-delete via is_deleted)
 ├── schemas/
 │   ├── auth.py                 ← FirebaseTokenPayload (frozen), AuthenticatedUser
 │   ├── user.py                 ← UserBase, UserRead, UserPublicRead, UserCreate, UserUpdate, UserDeletedRead
 │   │                              + RESERVED_USERNAMES frozenset + username regex validator
 │   │                              + UserPublicRead extended with social graph + block fields (Phase 7–8)
 │   ├── follow.py               ← FollowRead, FollowUserRead, FollowListResponse, RelationshipRead (Phase 7)
-│   └── block.py                ← BlockRead, BlockedUserRead, BlockedListResponse (Phase 8)
+│   ├── block.py                ← BlockRead, BlockedUserRead, BlockedListResponse (Phase 8)
+│   └── message.py              ← ParticipantRead, ConversationCreate, ConversationRead,
+│                                  ConversationListResponse, MessageCreate, MessageRead,
+│                                  MessageListResponse (Phase 9)
 ├── services/
 │   ├── auth/
 │   │   ├── __init__.py         ← exports verify_firebase_token, get_current_user
@@ -66,12 +71,16 @@ app/
 │   │                              update_last_seen()
 │   ├── follow_service.py       ← FollowService: follow/unfollow + list queries (Phase 7)
 │   ├── block_service.py        ← BlockService: block/unblock + follow auto-removal (Phase 8)
-│   └── privacy_guard.py        ← PrivacyGuard: can_view_profile(), can_follow(),
-│                                  can_message() stub, can_join_room() stub (Phase 8)
+│   ├── privacy_guard.py        ← PrivacyGuard: can_view_profile(), can_follow(),
+│   │                              can_message() (Phase 9 — block-aware), can_join_room() stub
+│   └── message_service.py      ← MessageService: get_or_create_conversation(), list_conversations(),
+│                                  send_message(), list_messages() (Phase 9)
 ├── repositories/
 │   ├── user_repo.py            ← UserRepository — all methods implemented (+ soft_delete, search_by_username_prefix)
 │   ├── follow_repo.py          ← FollowRepository — 9 methods (Phase 7)
-│   └── block_repo.py           ← BlockRepository — 7 methods incl. is_mutually_blocked() (Phase 8)
+│   ├── block_repo.py           ← BlockRepository — 7 methods incl. is_mutually_blocked() (Phase 8)
+│   ├── conversation_repo.py    ← ConversationRepository — 5 methods (Phase 9)
+│   └── message_repo.py         ← MessageRepository — 5 methods (Phase 9)
 ├── middleware/                  ← ASGI middleware — currently empty
 ├── utils/
 │   └── db_url.py               ← normalize_database_url()
@@ -82,8 +91,9 @@ alembic/
 │   ├── cfeccaac3dc7_phase_4_add_users_table.py              ← users table + gender_enum
 │   ├── a8f3d1c90e2b_phase_6_add_deleted_at_to_users.py      ← deleted_at column + index
 │   ├── b3e9f2a1c5d8_phase_7_add_follows_table.py            ← follows table (Phase 7)
-│   └── c4f8e3b2d9a1_phase_8_add_blocks_table.py             ← blocks table (Phase 8)
-├── env.py                      ← imports User, Follow, Block models; async migration runner
+│   ├── c4f8e3b2d9a1_phase_8_add_blocks_table.py             ← blocks table (Phase 8)
+│   └── d7a2e5f8b3c0_phase_9_add_direct_messaging_tables.py  ← conversations, conversation_participants, messages (Phase 9)
+├── env.py                      ← imports User, Follow, Block, Conversation, ConversationParticipant, Message models
 └── script.py.mako
 alembic.ini
 requirements.txt                ← includes firebase-admin>=6.5.0
@@ -94,10 +104,10 @@ requirements.txt                ← includes firebase-admin>=6.5.0
 
 ## Current Phase
 
-**Phase 8 — Privacy & Safety Foundation** ✅ Complete
+**Phase 9 — Direct Messaging Foundation** ✅ Complete
 
 Next phase:
-- ⏳ Phase 9 — Voice Rooms (LiveKit)
+- ⏳ Phase 10 — Voice Rooms (LiveKit)
 
 See `PROJECT_ROADMAP.md` for the complete phase list.
 
@@ -124,6 +134,10 @@ See `PROJECT_ROADMAP.md` for the complete phase list.
 | POST | `/api/v1/users/{username}/block` | Bearer Firebase token | Block a user |
 | DELETE | `/api/v1/users/{username}/block` | Bearer Firebase token | Unblock a user |
 | GET | `/api/v1/users/blocked` | Bearer Firebase token | List blocked users |
+| POST | `/api/v1/messages/conversations` | Bearer Firebase token | Start or get a 1-to-1 conversation |
+| GET | `/api/v1/messages/conversations` | Bearer Firebase token | List own conversations |
+| GET | `/api/v1/messages/{conversation_id}` | Bearer Firebase token | Paginated message list |
+| POST | `/api/v1/messages/{conversation_id}` | Bearer Firebase token | Send a text message |
 
 ---
 
@@ -198,6 +212,20 @@ FastAPI Router
 - blocks router included before users router (route precedence for /users/blocked)
 - Alembic migration: `c4f8e3b2d9a1`
 
+### Phase 9 — Direct Messaging Foundation
+- MessageType enum added to enums.py (TEXT; extensible)
+- Conversation ORM model (UUIDMixin + TimestampMixin)
+- ConversationParticipant junction table (composite PK; joined eager-loaded user)
+- Message ORM model (UUIDMixin + TimestampMixin; soft-delete via is_deleted)
+- ConversationRepository (5 methods: create_conversation, get_conversation, get_conversation_between, list_conversations, count_conversations)
+- MessageRepository (5 methods: get_message, send_message, list_messages, count_messages, mark_deleted)
+- MessageService: all 4 use cases with full business rule enforcement
+- PrivacyGuard.can_message() now active (block-aware; previously stub)
+- 4 API endpoints: POST /conversations, GET /conversations, GET /{conversation_id}, POST /{conversation_id}
+- SelfMessageError (400), MessagePermissionError (403), ConversationNotFoundError (404)
+- messages router registered in app/api/v1/__init__.py
+- Alembic migration: `d7a2e5f8b3c0`
+
 ### Phase 3 — Documentation
 - `ARCHITECTURE.md`, `PROJECT_ROADMAP.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `AI_AGENT.md`
 
@@ -230,15 +258,15 @@ FastAPI Router
 
 | Phase | Description |
 |-------|-------------|
-| 9 | Voice Rooms (LiveKit integration) |
-| 10 | Audio Stories (MinIO / S3 storage) |
-| 11 | Chat & Direct Messaging (WebSocket + Redis) |
-| 12 | Wallet & Payments |
-| 13 | Notifications (FCM + Celery) |
-| 14 | Security Hardening |
-| 15 | Testing (pytest, 80%+ coverage) |
-| 16 | Observability & Monitoring (structlog, Prometheus, Sentry) |
-| 17 | Deployment & Infrastructure (Docker, CI/CD) |
+| 10 | Voice Rooms (LiveKit integration) |
+| 11 | Audio Stories (MinIO / S3 storage) |
+| 12 | Real-Time Chat Upgrade (WebSocket + Redis pub/sub) |
+| 13 | Wallet & Payments |
+| 14 | Notifications (FCM + Celery) |
+| 15 | Security Hardening |
+| 16 | Testing (pytest, 80%+ coverage) |
+| 17 | Observability & Monitoring (structlog, Prometheus, Sentry) |
+| 18 | Deployment & Infrastructure (Docker, CI/CD) |
 
 ---
 
@@ -328,6 +356,9 @@ async def handler(current_user: User = Depends(get_current_user)) -> SomeRead:
 | `NotFollowingError` | 409 | `not_following` |
 | `AlreadyBlockedError` | 409 | `already_blocked` |
 | `NotBlockedError` | 409 | `not_blocked` |
+| `SelfMessageError` | 400 | `self_message` |
+| `MessagePermissionError` | 403 | `message_not_allowed` |
+| `ConversationNotFoundError` | 404 | `conversation_not_found` |
 | `ReservedUsernameError` | 422 | `reserved_username` |
 | `FirebaseUnavailableError` | 503 | `firebase_unavailable` |
 

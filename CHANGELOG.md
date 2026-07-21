@@ -11,6 +11,52 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.7.0] — 2026-07-21
+
+### Added — Phase 9: Direct Messaging Foundation
+
+#### Models
+- `app/models/conversation.py` — `Conversation` ORM model (UUIDMixin + TimestampMixin); `ConversationParticipant` junction table with composite PK (conversation_id, user_id), joined_at timestamp, CASCADE DELETE on both FK columns; `ix_conversation_participants_user_id` index
+- `app/models/message.py` — `Message` ORM model (UUIDMixin + TimestampMixin); fields: conversation_id (FK CASCADE), sender_id (FK CASCADE), content (TEXT nullable), message_type (MessageType enum), is_deleted (bool, default false); indexes: ix_messages_conversation_id, ix_messages_sender_id, ix_messages_created_at
+- `app/models/enums.py` — `MessageType` enum added (TEXT; future: AUDIO, IMAGE)
+
+#### Schemas
+- `app/schemas/message.py` — `ParticipantRead`, `ConversationCreate`, `ConversationRead` (with `from_orm_for_viewer()` classmethod), `ConversationListResponse`, `MessageCreate`, `MessageRead`, `MessageListResponse`
+
+#### Repositories
+- `app/repositories/conversation_repo.py` — `ConversationRepository`: `create_conversation()`, `get_conversation()`, `get_conversation_between()`, `list_conversations()`, `count_conversations()`
+- `app/repositories/message_repo.py` — `MessageRepository`: `get_message()`, `send_message()`, `list_messages()`, `count_messages()`, `mark_deleted()`
+
+#### Service
+- `app/services/message_service.py` — `MessageService`: `get_or_create_conversation()`, `list_conversations()`, `send_message()`, `list_messages()`; business rules: no self-message, no blocked recipient (PrivacyGuard.can_message()), no inactive/deleted recipient, duplicate conversation prevention
+
+#### API Endpoints
+- `POST /api/v1/messages/conversations` — start or retrieve a 1-to-1 conversation by recipient username; returns 200
+- `GET  /api/v1/messages/conversations` — list all conversations for the authenticated user; returns 200
+- `GET  /api/v1/messages/{conversation_id}` — paginated message list (limit/offset); newest first; returns 200
+- `POST /api/v1/messages/{conversation_id}` — send a text message; returns 201
+
+#### Domain Exceptions
+- `app/core/exceptions.py` — added `SelfMessageError` (→ 400), `ConversationNotFoundError` (→ 404), `MessagePermissionError` (→ 403)
+
+#### Application Wiring
+- `app/main.py` — exception handlers for `SelfMessageError`, `MessagePermissionError`, `ConversationNotFoundError`
+- `app/api/v1/__init__.py` — `messages.router` registered at `/api/v1/messages/`
+- `alembic/env.py` — `Conversation`, `ConversationParticipant`, `Message` imported for migration auto-detection
+
+#### Migration
+- `alembic/versions/d7a2e5f8b3c0_phase_9_add_direct_messaging_tables.py` — creates `message_type_enum`, `conversations`, `conversation_participants`, and `messages` tables with all columns, constraints, and indexes
+
+#### Strictly excluded (per Phase 9 spec)
+- ❌ WebSocket / live messaging
+- ❌ Read receipts
+- ❌ Typing indicators
+- ❌ Media upload
+- ❌ Group chat
+- ❌ Notifications
+
+---
+
 ## [0.6.0] — 2026-07-20
 
 ### Added — Phase 8: Privacy & Safety Foundation

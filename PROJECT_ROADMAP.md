@@ -215,7 +215,58 @@
 
 ---
 
-### ⏳ Phase 9 — Voice Rooms (LiveKit)
+### ✅ Phase 9 — Direct Messaging Foundation
+
+**Goal:** Production-ready One-to-One Direct Messaging foundation (HTTP-based; no WebSocket in this phase).
+
+**Deliverables:**
+- `app/models/conversation.py` — `Conversation` + `ConversationParticipant` junction table
+- `app/models/message.py` — `Message` ORM model with soft-delete
+- `app/models/enums.py` — `MessageType` enum added (TEXT)
+- `app/schemas/message.py` — full schema set: `ConversationCreate`, `ConversationRead`, `ConversationListResponse`, `MessageCreate`, `MessageRead`, `MessageListResponse`
+- `app/repositories/conversation_repo.py` — `ConversationRepository` (5 methods)
+- `app/repositories/message_repo.py` — `MessageRepository` (5 methods)
+- `app/services/message_service.py` — `MessageService` (4 methods); all business rules enforced
+- `app/api/v1/messages.py` — 4 API endpoints
+- `app/core/exceptions.py` — `SelfMessageError` (400), `ConversationNotFoundError` (404), `MessagePermissionError` (403)
+- `app/main.py` — exception handlers for 3 new messaging exceptions
+- `app/api/v1/__init__.py` — messages router registered
+- `alembic/env.py` — `Conversation`, `ConversationParticipant`, `Message` imported
+- `alembic/versions/d7a2e5f8b3c0_phase_9_add_direct_messaging_tables.py` — Alembic migration
+
+**API Endpoints:**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/messages/conversations` | Required | Start or get a 1-to-1 conversation |
+| GET  | `/api/v1/messages/conversations` | Required | List own conversations |
+| GET  | `/api/v1/messages/{conversation_id}` | Required | Paginated message list |
+| POST | `/api/v1/messages/{conversation_id}` | Required | Send a text message |
+
+**Business Rules:**
+- Cannot message yourself
+- Cannot message a blocked or mutually-blocking user (PrivacyGuard.can_message())
+- Cannot message an inactive or soft-deleted user
+- Duplicate conversations between the same pair are prevented
+- Only participants may read or write in a conversation
+
+**Strictly excluded:**
+- ❌ WebSocket / live messaging
+- ❌ Read receipts, typing indicators, media upload, group chat, notifications
+
+**Success Criteria:**
+- Conversation creation works ✅
+- Message sending works ✅
+- Blocked user protection works ✅
+- Existing Authentication unaffected ✅
+- Existing Follow System unaffected ✅
+- Existing Privacy System unaffected ✅
+- Import error নেই ✅
+- Alembic migration generated ✅
+
+---
+
+### ⏳ Phase 10 — Voice Rooms (LiveKit)
 
 **Goal:** Real-time voice room functionality powered by LiveKit.
 

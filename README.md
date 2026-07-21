@@ -187,6 +187,10 @@ alembic history
 | POST | `/api/v1/users/{username}/block` | Block a user (auto-removes follow in both directions) |
 | DELETE | `/api/v1/users/{username}/block` | Unblock a user |
 | GET | `/api/v1/users/blocked` | Paginated list of blocked users |
+| POST | `/api/v1/messages/conversations` | Start or retrieve a 1-to-1 conversation |
+| GET | `/api/v1/messages/conversations` | List own conversations |
+| GET | `/api/v1/messages/{conversation_id}` | List messages in a conversation (paginated) |
+| POST | `/api/v1/messages/{conversation_id}` | Send a message |
 
 ---
 
@@ -215,6 +219,9 @@ All domain errors return a structured JSON body:
 | 400 | `self_block` | Attempted to block yourself |
 | 409 | `already_blocked` | Already blocked this user |
 | 409 | `not_blocked` | Not currently blocking this user |
+| 400 | `self_message` | Attempted to message yourself |
+| 403 | `message_not_allowed` | Blocked in either direction |
+| 404 | `conversation_not_found` | Conversation not found or not a participant |
 | 422 | `reserved_username` | Username is reserved |
 | 503 | `firebase_unavailable` | Firebase service unreachable |
 
@@ -234,9 +241,10 @@ See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for the full phase-by-phase plan.
 | 6 | ✅ | Extended User Profile Management |
 | 7 | ✅ | Social Graph (Follow System) |
 | 8 | ✅ | Privacy & Safety Foundation (Block System) |
-| 9 | ⏳ | Voice Rooms (LiveKit) |
-| 8 | ⏳ | Audio Stories (MinIO) |
-| 9 | ⏳ | Chat & Messaging |
+| 9 | ✅ | Direct Messaging Foundation |
+| 10 | ⏳ | Voice Rooms (LiveKit) |
+| 11 | ⏳ | Audio Stories (MinIO) |
+| 12 | ⏳ | Chat & Real-Time Messaging (WebSocket + Redis) |
 | 10 | ⏳ | Wallet & Payments |
 | 11 | ⏳ | Notifications |
 | 12 | ⏳ | Security Hardening |
